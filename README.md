@@ -1,12 +1,21 @@
 # Shngm - Indonesian Comics Website
 
-A modern, responsive web application for reading Indonesian comics (komik) and manhwa. Built with Vue 3, featuring real-time update timestamps, library management, and multi-source content integration.
+A modern, responsive web application for reading Indonesian comics (komik) and manhwa. Built with Vue 3, featuring real-time update timestamps, library management, multi-source content integration, and an Instagram-style comment system.
 
 ## Features
 
 - **Real-time Timestamps**: Displays accurate update times for comics using chapter release dates
 - **Multi-source Integration**: Fetches content from Shinigami API and Manhwadesu
 - **Library Management**: Save your reading progress and track your library
+- **Reading History**: Auto-saves page position per chapter, continue from where you left off
+- **Instagram-Style Comments**: Modern comment system with rich media support
+  - Rich media uploads (images, videos, GIFs)
+  - Spoiler system with blur overlay and tap-to-reveal
+  - Rich editor with emoji picker and media toolbar
+  - Like, reply, and threaded comments
+  - Username system with uniqueness validation
+  - Profanity filter and moderation features
+  - Infinite scroll for performance
 - **Responsive Design**: Optimized for both desktop and mobile devices
 - **Fast Navigation**: Keep-alive caching for instant page transitions
 - **Smart Caching**: 24-hour localStorage cache for instant loading
