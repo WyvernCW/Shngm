@@ -50,30 +50,11 @@ const loadData = async () => {
 
 watch([page, genre], loadData, { immediate: true });
 
-const resolveImg = (m) => {
-    const CDN = 'https://assets.shngm.id/';
-    const mid = m.manga_id || m.id;
-    const candidates = [m.cover_portrait_url, m.cover_url, m.thumbnail];
-    for (const raw of candidates) {
-        if (!raw) continue;
-        if (raw.startsWith('http')) return raw;
-        if (raw.startsWith('thumbnail/')) return CDN + raw;
-        if (/^[0-9a-f-]{32,}$/i.test(raw)) return CDN + 'thumbnail/image/' + raw + '.jpg';
-    }
-    return CDN + 'thumbnail/image/' + mid + '.jpg';
-};
-
-const setPage = (p) => {
-    const g = genre.value ? `?genre=${genre.value}` : '';
-    window.location.hash = `#/all/${p}${g}`;
-};
-
-const clearGenreFilter = () => {
-    window.location.hash = '#/all';
-};
+const resolveImg = (m) => API.resolveImg(m);
 
 const getFallbackDate = (m) => {
-    return m.real_updated_at || m.updated_at || m.created_at || m.release_date || m.last_updated || null;
+    // Strictly prioritize the actual chapter date to avoid fake freshness
+    return m.real_updated_at || null;
 };
 
 const formatTimeShort = (dateStr) => {
@@ -85,11 +66,12 @@ const formatTimeShort = (dateStr) => {
     const diffMins = Math.floor(diffMs / 1000 / 60);
     const diffHours = Math.floor(diffMs / 1000 / 3600);
     const diffDays = Math.floor(diffHours / 24);
-    if (diffMins < 5) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m`;
-    if (diffHours < 24) return `${diffHours}h`;
-    if (diffDays < 7) return `${diffDays}d`;
-    return `${Math.floor(diffDays / 7)}w`;
+    
+    if (diffMins < 60) return 'FRESH';
+    if (diffHours < 5) return 'FRESH';
+    if (diffHours < 24) return `${diffHours}H`;
+    if (diffDays < 7) return `${diffDays}D`;
+    return `${Math.floor(diffDays / 7)}W`;
 };
 </script>
 

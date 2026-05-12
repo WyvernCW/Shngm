@@ -20,7 +20,7 @@ const props = defineProps({
 
 const isVeryRecent = computed(() => {
   if (!props.status) return false;
-  return props.status.includes('m') || (props.status.includes('h') && parseInt(props.status) < 5);
+  return props.status === 'FRESH';
 });
 </script>
 

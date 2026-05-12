@@ -28,7 +28,7 @@ const localApiPlugin = () => ({
             res.end(JSON.stringify(data));
           };
           res.send = (data) => res.end(data);
-          
+
           // Inject query into req for compatibility
           req.query = query;
 

@@ -14,7 +14,8 @@ const featuredIdx = ref(0);
 let featTimer;
 
 const getFallbackDate = (m) => {
-    return m.real_updated_at || m.updated_at || m.created_at || m.release_date || m.last_updated || null;
+    // Strictly prioritize the actual chapter date to avoid fake freshness from series metadata
+    return m.real_updated_at || null;
 };
 
 const formatTimeShort = (dateStr) => {
@@ -28,11 +29,11 @@ const formatTimeShort = (dateStr) => {
     const diffHours = Math.floor(diffMs / 1000 / 3600);
     const diffDays = Math.floor(diffHours / 24);
 
-    if (diffMins < 5) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m`;
-    if (diffHours < 24) return `${diffHours}h`;
-    if (diffDays < 7) return `${diffDays}d`;
-    return `${Math.floor(diffDays / 7)}w`;
+    if (diffMins < 60) return 'FRESH';
+    if (diffHours < 5) return 'FRESH';
+    if (diffHours < 24) return `${diffHours}H`;
+    if (diffDays < 7) return `${diffDays}D`;
+    return `${Math.floor(diffDays / 7)}W`;
 };
 
 const loadData = async () => {

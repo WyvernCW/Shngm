@@ -3,88 +3,91 @@
  * Multi-source integration (Local + Manhwadesu)
  */
 
-const API_BASE = 'https://api.shngm.io/v1';
+const API_BASE = '/api/shinigami-proxy?path=';
 
-// Request Queue for chapter lists to avoid 429
-const chapterListQueue = [];
-let isProcessingQueue = false;
-const chapterCache = new Map();
+const queue = [];
+let activeRequests = 0;
+const MAX_CONCURRENT = 3;
+const cache = new Map();
+const CACHE_TTL = 300000;
 
-async function processQueue() {
-    if (isProcessingQueue || chapterListQueue.length === 0) return;
-    isProcessingQueue = true;
-    while (chapterListQueue.length > 0) {
-        const { mangaId, resolve, reject } = chapterListQueue.shift();
-        
-        // Check cache first
-        if (chapterCache.has(mangaId)) {
-            const cached = chapterCache.get(mangaId);
-            if (Date.now() - cached.timestamp < 3600000) { // 1 hour cache
-                resolve(cached.data);
-                continue;
-            }
-        }
-
-        try {
-            const response = await fetch(`${API_BASE}/chapter/${mangaId}/list?page=1&page_size=500&sort_by=chapter_number&sort_order=desc`);
-            if (response.status === 429) {
-                // Backoff and retry later
-                chapterListQueue.unshift({ mangaId, resolve, reject });
-                await new Promise(r => setTimeout(r, 2000));
-                continue;
-            }
-            const data = await response.json();
-            chapterCache.set(mangaId, { data, timestamp: Date.now() });
-            resolve(data);
-        } catch (error) {
-            reject(error);
-        }
-        await new Promise(r => setTimeout(r, 400)); // 400ms gap between requests
+const processQueue = async () => {
+    if (activeRequests >= MAX_CONCURRENT || queue.length === 0) return;
+    activeRequests++;
+    const { task, resolve, reject, cacheKey } = queue.shift();
+    try {
+        const result = await task();
+        if (cacheKey && result) cache.set(cacheKey, { data: result, timestamp: Date.now() });
+        resolve(result);
+    } catch (e) {
+        reject(e);
+    } finally {
+        activeRequests--;
+        processQueue();
     }
-    isProcessingQueue = false;
+};
+
+const enqueue = (task, cacheKey) => new Promise((resolve, reject) => {
+    if (cacheKey && cache.has(cacheKey)) {
+        const entry = cache.get(cacheKey);
+        if (Date.now() - entry.timestamp < CACHE_TTL) return resolve(entry.data);
+    }
+    queue.push({ task, resolve, reject, cacheKey });
+    processQueue();
+});
+
+async function fetchWithRetry(url, options = {}, retries = 3, backoff = 1000) {
+    const cacheKey = url + JSON.stringify(options);
+    return enqueue(async () => {
+        for (let i = 0; i < retries; i++) {
+            try {
+                const response = await fetch(url, options);
+                
+                if (response.status === 429) {
+                    const wait = backoff * Math.pow(2, i);
+                    console.warn(`[API] 429 Rate Limited. Retry ${i+1}/${retries} in ${wait}ms...`);
+                    await new Promise(r => setTimeout(r, wait));
+                    continue;
+                }
+
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                return await response.json();
+            } catch (err) {
+                if (i === retries - 1) throw err;
+                const wait = backoff * Math.pow(2, i);
+                console.warn(`[API] Network Error (${err.message}). Retry ${i+1}/${retries} in ${wait}ms...`);
+                await new Promise(r => setTimeout(r, wait));
+            }
+        }
+    }, cacheKey);
 }
 
 export const API = {
-    // --- Local Source (Legacy API) ---
     async getLatest(page = 1, pageSize = 48, genre = '') {
         try {
-            let url = `${API_BASE}/manga/list?type=project&page=${page}&page_size=${pageSize}&is_update=true&sort=latest&sort_order=desc`;
-            if (genre) url += `&genre=${encodeURIComponent(genre)}`;
-            const response = await fetch(url);
-            return await response.json();
+            let path = `manga/list&type=project&page=${page}&page_size=${pageSize}&is_update=true&sort=latest&sort_order=desc`;
+            if (genre) path += `&genre=${encodeURIComponent(genre)}`;
+            return await fetchWithRetry(`${API_BASE}${path}`);
         } catch (error) {
             console.error('Error fetching latest:', error);
             return { data: [] };
         }
     },
 
-    /**
-     * Fetch ALL series (browse/library view)
-     */
     async getAllSeries(page = 1, pageSize = 48, genre = '') {
         try {
-            let url = `${API_BASE}/manga/list?type=project&page=${page}&page_size=${pageSize}&sort=latest&sort_order=desc`;
-            if (genre) url += `&genre=${encodeURIComponent(genre)}`;
-            const response = await fetch(url);
-            return await response.json();
+            let path = `manga/list&type=project&page=${page}&page_size=${pageSize}&sort=latest&sort_order=desc`;
+            if (genre) path += `&genre=${encodeURIComponent(genre)}`;
+            return await fetchWithRetry(`${API_BASE}${path}`);
         } catch (error) {
             console.error('Error fetching all series:', error);
             return { data: [] };
         }
     },
 
-
-    /**
-     * Fetch trending series
-     */
     async getTrending(filter = 'daily', pageSize = 24) {
         try {
-            // Fix: Backend might not support 'monthly' or 'monthly' filter name might be different.
-            // Some APIs use 'all' instead of 'monthly'.
-            const apiFilter = filter === 'monthly' ? 'weekly' : filter; // Fallback weekly if monthly fails or use weekly for now
-            const response = await fetch(`${API_BASE}/manga/top?filter=${apiFilter}&page=1&page_size=${pageSize}`);
-            if (!response.ok) throw new Error('Trending API failed');
-            return await response.json();
+            return await fetchWithRetry(`${API_BASE}manga/top&filter=${filter}&page=1&page_size=${pageSize}`);
         } catch (error) {
             console.error('Error fetching trending:', error);
             return { data: [] };
@@ -92,12 +95,9 @@ export const API = {
     },
 
     async getDetail(mangaId) {
-        if (String(mangaId).includes('mwd-')) {
-            return this.mwd.getDetail(mangaId.replace('mwd-', ''));
-        }
+        if (String(mangaId).includes('mwd-')) return this.mwd.getDetail(mangaId.replace('mwd-', ''));
         try {
-            const response = await fetch(`${API_BASE}/manga/detail/${mangaId}`);
-            return await response.json();
+            return await fetchWithRetry(`${API_BASE}manga/detail/${mangaId}`);
         } catch (error) {
             console.error('Error fetching details:', error);
             return null;
@@ -105,24 +105,22 @@ export const API = {
     },
 
     async getChapterList(mangaId) {
-        if (String(mangaId).includes('mwd-')) {
-            return this.mwd.getChapterList(mangaId.replace('mwd-', ''));
+        if (String(mangaId).includes('mwd-')) return this.mwd.getChapterList(mangaId.replace('mwd-', ''));
+        try {
+            return await fetchWithRetry(`${API_BASE}chapter/${mangaId}/list&page=1&page_size=500&sort_by=chapter_number&sort_order=desc`);
+        } catch (error) {
+            console.error('Error fetching chapter list:', error);
+            return { data: [] };
         }
-        
-        return new Promise((resolve, reject) => {
-            chapterListQueue.push({ mangaId, resolve, reject });
-            processQueue();
-        });
     },
 
     async getChapter(chapterId) {
         if (String(chapterId).includes('mwd-')) {
-            const [mangaSlug, chapterSlug] = chapterId.replace('mwd-', '').split('__');
-            return this.mwd.getPages(mangaSlug, chapterSlug);
+            const [slug, ch] = chapterId.replace('mwd-', '').split('__');
+            return this.mwd.getPages(slug, ch);
         }
         try {
-            const response = await fetch(`${API_BASE}/chapter/detail/${chapterId}`);
-            return await response.json();
+            return await fetchWithRetry(`${API_BASE}chapter/detail/${chapterId}`);
         } catch (error) {
             console.error('Error fetching chapter:', error);
             return null;
@@ -132,17 +130,11 @@ export const API = {
     async search(query) {
         try {
             const [local, mwd] = await Promise.all([
-                fetch(`${API_BASE}/manga/list?page=1&page_size=30&q=${encodeURIComponent(query)}`).then(r => r.json()),
+                fetchWithRetry(`${API_BASE}manga/list&page=1&page_size=30&q=${encodeURIComponent(query)}`),
                 this.mwd.search(query)
             ]);
-            
-            const localData = (local.data || []).map(m => ({ ...m, source: 'local' }));
-            const mwdData = (mwd.data || []).map(m => ({ 
-                ...m, 
-                manga_id: `mwd-${m.manga_id}`,
-                source: 'manhwadesu' 
-            }));
-            
+            const localData = (local?.data || []).map(m => ({ ...m, source: 'local' }));
+            const mwdData = (mwd?.data || []).map(m => ({ ...m, manga_id: `mwd-${m.manga_id}`, source: 'manhwadesu' }));
             return { data: [...localData, ...mwdData] };
         } catch (error) {
             console.error('Error searching:', error);
@@ -150,66 +142,68 @@ export const API = {
         }
     },
 
-    // --- Manhwadesu Source ---
     mwd: {
         async getLatest(page = 1) {
-            const res = await fetch(`/api/manhwadesu/series?page=${page}`);
-            return res.json();
+            return fetchWithRetry(`/api/manhwadesu/series?page=${page}`);
         },
         async getDetail(slug) {
-            const res = await fetch(`/api/manhwadesu/detail?slug=${slug}`);
-            const data = await res.json();
+            const data = await fetchWithRetry(`/api/manhwadesu/detail?slug=${slug}`);
             return { data: { ...data.detail, manga_id: `mwd-${slug}` } };
         },
         async getChapterList(slug) {
-            const res = await fetch(`/api/manhwadesu/detail?slug=${slug}`);
-            const data = await res.json();
-            return { data: (data.chapters || []).map(ch => ({ 
-                ...ch, 
-                chapter_id: `mwd-${slug}__${ch.chapter_id}` 
-            })) };
+            const data = await fetchWithRetry(`/api/manhwadesu/detail?slug=${slug}`);
+            return { data: (data.chapters || []).map(ch => ({ ...ch, chapter_id: `mwd-${slug}__${ch.chapter_id}` })) };
         },
         async getPages(slug, chapter) {
-            const res = await fetch(`/api/manhwadesu/pages?slug=${slug}&chapter=${chapter}`);
-            const data = await res.json();
-            const images = (data.data || []).map(img => `/api/image-proxy?url=${encodeURIComponent(img)}`);
-            return { 
-                data: { 
-                    chapter: { data: images },
-                    base_url: '',
-                    path: ''
-                } 
-            };
+            const data = await fetchWithRetry(`/api/manhwadesu/pages?slug=${slug}&chapter=${chapter}`);
+            const images = (data || []).map(img => `/api/image-proxy?url=${encodeURIComponent(img)}`);
+            return { data: { chapter: { data: images }, base_url: '', path: '' } };
         },
         async search(q) {
-            const res = await fetch(`/api/manhwadesu/search?q=${encodeURIComponent(q)}`);
-            return res.json();
+            return fetchWithRetry(`/api/manhwadesu/search?q=${encodeURIComponent(q)}`);
         }
     },
 
-    // --- Helpers ---
     resolveImg(m) {
-        let finalUrl = '/assets/covers/standard.svg';
-        if (m.source === 'manhwadesu' || (m.manga_id && String(m.manga_id).startsWith('mwd-'))) {
-            finalUrl = m.cover_url || m.thumbnail || '/assets/covers/standard.svg';
-        } else {
-            const CDN = 'https://assets.shngm.id/';
-            const mid = m.manga_id || m.id;
-            const candidates = [m.cover_portrait_url, m.cover_url, m.thumbnail];
-            for (const raw of candidates) {
-                if (!raw) continue;
-                if (raw.startsWith('http')) { finalUrl = raw; break; }
-                if (raw.startsWith('thumbnail/')) { finalUrl = CDN + raw; break; }
-            }
-            if (finalUrl === '/assets/covers/standard.svg' && mid) {
-                finalUrl = CDN + 'thumbnail/image/' + mid + '.jpg';
-            }
-        }
+        if (!m) return '/assets/covers/standard.svg';
+        let url = '/assets/covers/standard.svg';
         
-        if (finalUrl.startsWith('http')) {
-            return `/api/image-proxy?url=${encodeURIComponent(finalUrl)}`;
+        // Manhwadesu source
+        if (m.source === 'manhwadesu' || String(m.manga_id).startsWith('mwd-')) {
+            url = m.cover_url || m.thumbnail || m.coverImage || url;
+        } else {
+            // Shinigami / Shngm source
+            const CDN = 'https://images.shngm.id/'; // Updated CDN
+            const mid = m.manga_id || m.id || m.id_manga;
+            
+            const cands = [
+                m.cover_portrait_url, m.cover_url, m.cover, 
+                m.thumbnail, m.coverImage, m.poster_url, m.image_url
+            ];
+
+            for (const c of cands) {
+                if (c && typeof c === 'string') {
+                    if (c.startsWith('http')) {
+                        url = c;
+                        break;
+                    }
+                    if (c.startsWith('thumbnail/') || c.startsWith('manga/')) {
+                        url = CDN + c;
+                        break;
+                    }
+                }
+            }
+
+            // UUID fallback - try manga path
+            if ((url === '/assets/covers/standard.svg' || url.includes('placeholder')) && mid) {
+                url = `${CDN}manga/image/${mid}.jpg`;
+            }
         }
-        return finalUrl;
+
+        // Apply proxy to all external URLs
+        if (url && url.startsWith('http')) {
+            return `/api/image-proxy?url=${encodeURIComponent(url)}`;
+        }
+        return url;
     }
 };
-
