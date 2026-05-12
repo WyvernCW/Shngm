@@ -7,14 +7,18 @@ import LibraryView from './views/LibraryView.vue';
 import SeriesView from './views/SeriesView.vue';
 import ReaderView from './views/ReaderView.vue';
 import SearchView from './views/SearchView.vue';
-import { Home, Flame, LayoutGrid, Library, Search, Menu, X, Compass } from 'lucide-vue-next';
+import { BookOpen, Flame, Compass, Library, Search } from 'lucide-vue-next';
 
 const currentView = shallowRef(HomeView);
 const currentParams = ref({ parts: [], queryParams: {} });
 const isMobileMenuOpen = ref(false);
+const currentHash = ref(window.location.hash || '#/');
+console.log("APP_VERSION: 1.1");
 
 const handleRoute = () => {
     const hash = window.location.hash || '#/';
+    currentHash.value = hash;
+    
     const [rawPath, ...parts] = hash.replace('#/', '').split('/');
     const [path, queryStr] = rawPath.split('?');
     const queryParams = Object.fromEntries(new URLSearchParams(queryStr || ''));
@@ -51,404 +55,248 @@ const navigateTo = (path) => {
 
 <template>
   <div class="app-container" :class="{ 'is-reader': isReader }">
-    <!-- Desktop: Collapsible Icon Rail Sidebar -->
-    <nav v-if="!isReader" class="sidebar-rail">
+
+    <!-- Desktop Sidebar -->
+    <nav v-if="!isReader" class="sidebar-comic">
       <div class="rail-header">
-        <!-- Logo Mark: Geometric V -->
-        <svg class="logo-mark" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M20 35L8 12H14L20 24L26 12H32L20 35Z" fill="currentColor"/>
-          <rect x="12" y="8" width="16" height="3" rx="1.5" fill="currentColor"/>
-        </svg>
-        <!-- Wordmark: Vrtwel (bold) + Comics (light) -->
+        <img src="/assets/logo.png" class="logo-box" alt="VRTWEL Logo" />
         <div class="wordmark">
-          <span class="wm-bold">Vrtwel</span><span class="wm-light">Comics</span>
+          <span>VRTWEL</span>
+          <span class="wm-sub">COMICS</span>
         </div>
       </div>
 
       <div class="rail-nav">
-        <a href="#/" class="rail-link" :class="{ active: currentView === HomeView }" title="Home">
-          <Home :size="22" />
-          <span class="link-label">Home</span>
+        <a href="#/" class="nav-btn" :class="{ active: currentView === HomeView }" title="Home">
+          <BookOpen :size="24" strokeWidth="2.5" />
+          <span class="link-label">HOME</span>
         </a>
-        <a href="#/trending" class="rail-link" :class="{ active: currentView === TrendingView }" title="Trending">
-          <Flame :size="22" />
-          <span class="link-label">Trending</span>
+        <a href="#/trending" class="nav-btn" :class="{ active: currentView === TrendingView }" title="Trending">
+          <Flame :size="24" strokeWidth="2.5" />
+          <span class="link-label">HOT</span>
         </a>
-        <a href="#/all" class="rail-link" :class="{ active: currentView === AllSeriesView }" title="Browse">
-          <Compass :size="22" />
-          <span class="link-label">Browse</span>
+        <a href="#/all" class="nav-btn" :class="{ active: currentView === AllSeriesView }" title="Browse">
+          <Compass :size="24" strokeWidth="2.5" />
+          <span class="link-label">BROWSE</span>
         </a>
-        <a href="#/library" class="rail-link" :class="{ active: currentView === LibraryView }" title="Library">
-          <Library :size="22" />
-          <span class="link-label">Library</span>
+        <a href="#/library" class="nav-btn" :class="{ active: currentView === LibraryView }" title="Library">
+          <Library :size="24" strokeWidth="2.5" />
+          <span class="link-label">LIBRARY</span>
         </a>
       </div>
 
       <div class="rail-footer">
-        <a href="#/search" class="rail-link" :class="{ active: currentView === SearchView }" title="Search">
-          <Search :size="22" />
-          <span class="link-label">Search</span>
+        <a href="#/search" class="nav-btn" :class="{ active: currentView === SearchView }" title="Search">
+          <Search :size="24" strokeWidth="2.5" />
+          <span class="link-label">SEARCH</span>
         </a>
       </div>
     </nav>
 
-    <!-- Mobile: Top Header -->
+    <!-- Mobile Header -->
     <header v-if="!isReader" class="mobile-header">
-      <div class="mobile-header-left">
-        <!-- Small Logo Mark -->
-        <svg class="mobile-logo" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M20 35L8 12H14L20 24L26 12H32L20 35Z" fill="currentColor"/>
-          <rect x="12" y="8" width="16" height="3" rx="1.5" fill="currentColor"/>
-        </svg>
-        <span class="mobile-wordmark"><b>Vrtwel</b>Comics</span>
+      <div class="mobile-header-left" @click="navigateTo('#/')" style="cursor: pointer;">
+        <img src="/assets/logo.png" class="logo-box" alt="VRTWEL Logo" />
+        <span class="mobile-wordmark">VRTWEL</span>
       </div>
       <button class="mobile-search-btn" @click="navigateTo('#/search')">
-        <Search :size="22" />
+        <Search :size="24" strokeWidth="2.5" />
       </button>
     </header>
 
-    <!-- Mobile: Drawer Menu Overlay -->
-    <div v-if="isMobileMenuOpen" class="mobile-drawer-overlay" @click="isMobileMenuOpen = false"></div>
-    <nav v-if="isMobileMenuOpen" class="mobile-drawer">
-      <div class="drawer-header">
-        <span class="drawer-wordmark"><b>Vrtwel</b>Comics</span>
-        <button class="drawer-close" @click="isMobileMenuOpen = false">
-          <X :size="24" />
-        </button>
-      </div>
-      <div class="drawer-nav">
-        <a href="#/" class="drawer-link" :class="{ active: currentView === HomeView }" @click="isMobileMenuOpen = false">
-          <Home :size="20" /> Home
-        </a>
-        <a href="#/trending" class="drawer-link" :class="{ active: currentView === TrendingView }" @click="isMobileMenuOpen = false">
-          <Flame :size="20" /> Trending
-        </a>
-        <a href="#/all" class="drawer-link" :class="{ active: currentView === AllSeriesView }" @click="isMobileMenuOpen = false">
-          <Compass :size="20" /> Browse
-        </a>
-        <a href="#/library" class="drawer-link" :class="{ active: currentView === LibraryView }" @click="isMobileMenuOpen = false">
-          <Library :size="20" /> Library
-        </a>
-        <a href="#/search" class="drawer-link" :class="{ active: currentView === SearchView }" @click="isMobileMenuOpen = false">
-          <Search :size="20" /> Search
-        </a>
-      </div>
-    </nav>
-
-    <!-- Main View -->
+    <!-- Main View Content -->
     <main class="view-content" :class="{ 'full-width': isReader }">
-      <keep-alive>
-        <component :is="currentView" :params="currentParams" />
-      </keep-alive>
+      <component :is="currentView" :params="currentParams" />
     </main>
 
-    <!-- Mobile: Bottom Tab Navigation (5 tabs) -->
+    <!-- Mobile Navigation -->
     <nav v-if="!isReader" class="mobile-bottom-nav">
       <a href="#/" class="mobile-tab" :class="{ active: currentView === HomeView }">
-        <Home :size="20" />
-        <span>Home</span>
+        <BookOpen :size="24" strokeWidth="2.5" />
+        <span>HOME</span>
       </a>
       <a href="#/trending" class="mobile-tab" :class="{ active: currentView === TrendingView }">
-        <Flame :size="20" />
-        <span>Trending</span>
+        <Flame :size="24" strokeWidth="2.5" />
+        <span>HOT</span>
       </a>
       <a href="#/all" class="mobile-tab" :class="{ active: currentView === AllSeriesView }">
-        <Compass :size="20" />
-        <span>Browse</span>
+        <Compass :size="24" strokeWidth="2.5" />
+        <span>BROWSE</span>
       </a>
       <a href="#/library" class="mobile-tab" :class="{ active: currentView === LibraryView }">
-        <Library :size="20" />
-        <span>Library</span>
+        <Library :size="24" strokeWidth="2.5" />
+        <span>STASH</span>
       </a>
       <a href="#/search" class="mobile-tab" :class="{ active: currentView === SearchView }">
-        <Search :size="20" />
-        <span>Search</span>
+        <Search :size="24" strokeWidth="2.5" />
+        <span>FIND</span>
       </a>
     </nav>
   </div>
 </template>
 
-<style>
-/* Global Layout */
+<style scoped>
 .app-container {
   display: flex;
   min-height: 100vh;
-  background: var(--bg);
-  color: var(--text);
 }
 
-/* Desktop: Collapsible Icon Rail Sidebar */
-.sidebar-rail {
+/* Desktop Sidebar - Brutalist Comic Panel */
+.sidebar-comic {
   width: var(--sidebar-w);
   height: 100vh;
   position: sticky;
   top: 0;
-  background: var(--sidebar-bg);
-  border-right: 1px solid var(--border);
+  background: var(--surface);
+  border-right: var(--border-w) solid var(--border);
   display: flex;
   flex-direction: column;
   z-index: 1000;
   flex-shrink: 0;
-  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: width 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   overflow: hidden;
+  box-shadow: 4px 0 0 var(--border);
 }
 
-.sidebar-rail:hover {
+.sidebar-comic:hover {
   width: var(--sidebar-w-expand);
 }
 
 .rail-header {
-  padding: 1.25rem;
+  padding: 1.5rem;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  border-bottom: 1px solid var(--border);
-  height: 64px;
+  gap: 1rem;
+  height: 80px;
+  border-bottom: var(--border-w) solid var(--border);
+  background: var(--accent);
+  color: white;
 }
 
-.logo-mark {
-  width: 32px;
-  height: 32px;
-  color: var(--accent);
+.logo-box {
+  width: 40px;
+  height: 40px;
+  background: #000000;
+  border: var(--border-w) solid var(--border);
   flex-shrink: 0;
+  box-shadow: 3px 3px 0 var(--border);
+  object-fit: cover;
+  display: block;
 }
 
 .wordmark {
   display: flex;
-  align-items: center;
-  font-size: 1.1rem;
+  flex-direction: column;
+  line-height: 1;
   opacity: 0;
   transform: translateX(-10px);
-  transition: all 0.25s ease;
-  white-space: nowrap;
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-.sidebar-rail:hover .wordmark {
-  opacity: 1;
-  transform: translateX(0);
-}
+.sidebar-comic:hover .wordmark { opacity: 1; transform: translateX(0); }
 
-.wm-bold {
-  font-weight: 800;
-  color: var(--text);
-}
-
-.wm-light {
-  font-weight: 300;
-  color: var(--text-secondary);
-}
+.wordmark span { font-weight: 900; font-size: 1.5rem; letter-spacing: -1px; }
+.wordmark .wm-sub { font-size: 0.8rem; font-weight: 700; letter-spacing: 2px; color: var(--yellow); }
 
 .rail-nav {
   flex: 1;
-  padding: 1rem 0.75rem;
+  padding: 1.5rem 1rem;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
 
-.rail-link {
+.nav-btn {
   display: flex;
   align-items: center;
-  gap: 0.875rem;
-  padding: 0.75rem;
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
+  gap: 1rem;
+  padding: 0.8rem;
+  color: var(--text);
   text-decoration: none;
-  font-weight: 500;
+  font-weight: 900;
   transition: all 0.2s;
+  border: var(--border-w) solid transparent;
   position: relative;
 }
 
-.rail-link:hover {
-  background: var(--card-bg);
-  color: var(--text);
+.nav-btn:hover {
+  border-color: var(--border);
+  background: var(--yellow);
+  box-shadow: 4px 4px 0 var(--border);
+  transform: translate(-2px, -2px);
 }
 
-.rail-link.active {
-  background: rgba(220, 38, 38, 0.15);
-  color: var(--accent);
+.nav-btn.active {
+  background: #27272a;
+  color: white;
+  border-color: var(--border);
+  box-shadow: 4px 4px 0 var(--accent);
 }
 
 .link-label {
   opacity: 0;
-  transform: translateX(-8px);
-  transition: all 0.2s ease;
-  white-space: nowrap;
-  font-size: 0.9rem;
+  transform: translateX(-10px);
+  transition: all 0.2s;
+  font-size: 1.1rem;
+  letter-spacing: 1px;
 }
 
-.sidebar-rail:hover .link-label {
-  opacity: 1;
-  transform: translateX(0);
-}
+.sidebar-comic:hover .link-label { opacity: 1; transform: translateX(0); }
 
-.rail-footer {
-  padding: 1rem 0.75rem;
-  border-top: 1px solid var(--border);
-}
+.rail-footer { padding: 1.5rem 1rem; border-top: var(--border-w) solid var(--border); }
 
 /* Main Content Area */
-.view-content {
-  flex: 1;
-  min-width: 0;
-  padding: 2rem;
-  transition: all 0.3s;
-}
+.view-content { flex: 1; min-width: 0; padding: 3rem; transition: all 0.3s; }
+.view-content.full-width { padding: 0 !important; }
 
-.view-content.full-width {
-  padding: 0 !important;
-}
-
-/* Mobile: Header */
+/* Mobile Header */
 .mobile-header {
   display: none;
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 56px;
+  top: 0; left: 0; right: 0;
+  height: 64px;
   padding: 0 1rem;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
   align-items: center;
   justify-content: space-between;
+  background: var(--accent);
+  border-bottom: var(--border-w) solid var(--border);
+  box-shadow: 0 4px 0 var(--border);
   z-index: 500;
 }
 
-.mobile-header-left {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.mobile-logo {
-  width: 28px;
-  height: 28px;
-  color: var(--accent);
-}
-
-.mobile-wordmark {
-  font-size: 1rem;
-  color: var(--text);
-}
-
-.mobile-wordmark b {
-  font-weight: 800;
-}
+.mobile-header-left { display: flex; align-items: center; gap: 0.75rem; }
+.mobile-wordmark { font-size: 1.5rem; font-weight: 900; color: white; letter-spacing: -1px; }
 
 .mobile-search-btn {
-  background: none;
-  border: none;
-  color: var(--text-secondary);
-  cursor: pointer;
-  padding: 0.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 8px;
-  transition: all 0.2s;
-}
-
-.mobile-search-btn:hover {
-  background: var(--card-bg);
-  color: var(--text);
-}
-
-/* Mobile: Drawer Menu */
-.mobile-drawer-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.7);
-  z-index: 800;
-}
-
-.mobile-drawer {
-  position: fixed;
-  top: 0;
-  left: 0;
-  bottom: 0;
-  width: 280px;
   background: var(--surface);
-  border-right: 1px solid var(--border);
-  z-index: 900;
-  display: flex;
-  flex-direction: column;
-}
-
-.drawer-header {
-  padding: 1rem;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.drawer-wordmark {
-  font-size: 1.1rem;
-}
-
-.drawer-wordmark b {
-  font-weight: 800;
-}
-
-.drawer-close {
-  background: none;
-  border: none;
-  color: var(--text-secondary);
+  border: var(--border-w) solid var(--border);
+  color: var(--text);
   cursor: pointer;
   padding: 0.5rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
+  box-shadow: 3px 3px 0 var(--border);
+  transition: transform 0.1s;
 }
 
-.drawer-close:hover {
-  background: var(--card-bg);
-  color: var(--text);
+.mobile-search-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 var(--border);
 }
 
-.drawer-nav {
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.drawer-link {
-  display: flex;
-  align-items: center;
-  gap: 0.875rem;
-  padding: 0.875rem 1rem;
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
-  text-decoration: none;
-  font-weight: 500;
-  transition: all 0.2s;
-}
-
-.drawer-link:hover {
-  background: var(--card-bg);
-  color: var(--text);
-}
-
-.drawer-link.active {
-  background: rgba(220, 38, 38, 0.15);
-  color: var(--accent);
-}
-
-/* Mobile: Bottom Tab Navigation */
+/* Mobile Bottom Navigation */
 .mobile-bottom-nav {
   display: none;
   position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 64px;
+  bottom: 0; left: 0; right: 0;
+  height: 72px;
   background: var(--surface);
-  border-top: 1px solid var(--border);
+  border-top: var(--border-w) solid var(--border);
   z-index: 1000;
   padding-bottom: env(safe-area-inset-bottom);
+  justify-content: space-around;
+  align-items: stretch;
 }
 
 .mobile-tab {
@@ -459,45 +307,27 @@ const navigateTo = (path) => {
   text-decoration: none;
   color: var(--text-secondary);
   flex: 1;
-  height: 100%;
-  gap: 2px;
+  gap: 4px;
   transition: all 0.2s;
+  border-right: var(--border-w) solid var(--border);
 }
 
-.mobile-tab span {
-  font-size: 0.6rem;
-  font-weight: 600;
-}
+.mobile-tab:last-child { border-right: none; }
+
+.mobile-tab span { font-size: 0.7rem; font-weight: 900; letter-spacing: 0.5px; }
 
 .mobile-tab.active {
-  color: var(--accent);
+  background: #27272a;
+  color: white;
 }
 
-/* Responsive Breakpoints */
 @media (max-width: 1024px) {
-  .sidebar-rail {
-    display: none;
-  }
-
-  .view-content {
-    padding-top: 72px;
-    padding-bottom: 80px;
-  }
-
-  .mobile-header {
-    display: flex;
-  }
-
-  .mobile-bottom-nav {
-    display: flex;
-  }
+  .sidebar-comic { display: none; }
+  .view-content { padding: 1.5rem; padding-top: calc(64px + 1.5rem); padding-bottom: calc(72px + 2rem); }
+  .mobile-header, .mobile-bottom-nav { display: flex; }
 }
 
 @media (max-width: 480px) {
-  .view-content {
-    padding: 1rem;
-    padding-top: 72px;
-    padding-bottom: 80px;
-  }
+  .view-content { padding: 1rem; padding-top: calc(64px + 1.5rem); padding-bottom: calc(72px + 2rem); }
 }
 </style>

@@ -6,7 +6,7 @@ export default async function handler(req, res) {
     }
 
     // Security check: only allow manhwadesu.tech and known CDNs
-    const allowedDomains = ['manhwadesu.tech', 'cdn.manhwadesu.tech', 'img.manhwadesu.tech', 'images.shngm.id'];
+    const allowedDomains = ['manhwadesu.tech', 'cdn.manhwadesu.tech', 'img.manhwadesu.tech', 'images.shngm.id', 'assets.shngm.id'];
     const urlObj = new URL(url);
     if (!allowedDomains.includes(urlObj.hostname)) {
         return res.status(403).send('Domain not allowed');

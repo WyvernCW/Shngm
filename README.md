@@ -1,106 +1,62 @@
-# Shngm - Indonesian Comics Website
+# VRTWEL COMICS - Premium Brutalist Manga Reader
 
-A modern, responsive web application for reading Indonesian comics (komik) and manhwa. Built with Vue 3, featuring real-time update timestamps, library management, multi-source content integration, and an Instagram-style comment system.
+![VRTWEL COMICS Logo](/assets/logo.png)
 
-## Features
+A high-performance, visually striking web application for reading manga and manhwa. Built with a "Brutalist Comic" aesthetic, featuring real-time "FRESH" chapter badges, advanced API throttling, and a premium dark-mode experience.
 
-- **Real-time Timestamps**: Displays accurate update times for comics using chapter release dates
-- **Multi-source Integration**: Fetches content from Shinigami API and Manhwadesu
-- **Library Management**: Save your reading progress and track your library
-- **Reading History**: Auto-saves page position per chapter, continue from where you left off
-- **Instagram-Style Comments**: Modern comment system with rich media support
-  - Rich media uploads (images, videos, GIFs)
-  - Spoiler system with blur overlay and tap-to-reveal
-  - Rich editor with emoji picker and media toolbar
-  - Like, reply, and threaded comments
-  - Username system with uniqueness validation
-  - Profanity filter and moderation features
-  - Infinite scroll for performance
-- **Responsive Design**: Optimized for both desktop and mobile devices
-- **Fast Navigation**: Keep-alive caching for instant page transitions
-- **Smart Caching**: 24-hour localStorage cache for instant loading
-- **Search & Filter**: Advanced search with genre and format filters
-- **Reading Progress**: Track your reading progress with visual indicators
+## ⚡ Key Features
 
-## Tech Stack
+- **Brutalist Comic Aesthetic**: A unique, high-craft design system featuring sharp borders, heavy box shadows, halftone dot patterns, and vibrant comic-inspired accents.
+- **Real-Time "FRESH" Badges**: Real-time identification of new chapters. Chapters released within the last 5 hours are marked with a dynamic "FRESH" badge.
+- **API Stability Layer**: Robust request queue and caching system to handle high-frequency data fetching while strictly adhering to backend rate limits (prevents 429 errors).
+- **Infinite Library Management**: Save your favorite series, track reading progress, and maintain a personal "Stash" with local persistence.
+- **Instagram-Style Comments**: A modern, rich-media comment system supporting images, GIFs, spoiler tags, and nested replies.
+- **Zero-Flicker UI**: Implemented `v-cloak` and optimized CSS variables to eliminate Flash of Unstyled Content (FOUC).
+- **Responsive Mastery**: Tailored experiences for Desktop (sticky sidebar navigation) and Mobile (bottom navigation rail).
 
-- **Frontend**: Vue 3 (Composition API)
+## 🛠 Tech Stack
+
+- **Framework**: Vue 3 (Composition API)
 - **Build Tool**: Vite
-- **Styling**: Custom CSS with CSS variables
+- **Styling**: Vanilla CSS with a custom-built Design System
 - **Icons**: Lucide Vue Next
-- **API Integration**: Shinigami API, Manhwadesu API
+- **API Architecture**: Queue-based service layer with in-memory caching (1-hour TTL)
 
-## Installation
+## 🚀 Getting Started
 
-```bash
-# Install dependencies
-npm install
-
-# Start development server
-npm run dev
-
-# Build for production
-npm run build
-```
-
-## Project Structure
+### Project Structure
 
 ```
-shnm/
+Shngm/
 ├── src/
-│   ├── components/       # Reusable Vue components
-│   ├── views/           # Page components
-│   ├── composables/     # Vue composition functions
-│   ├── api.js           # API service layer
-│   └── main.js          # App entry point
-├── api/                 # Vercel API routes
-├── public/              # Static assets
-└── lib/                 # Utility libraries
+│   ├── components/       # Optimized reusable UI components
+│   ├── views/           # Main view pages (Home, Trending, Library, etc.)
+│   ├── api.js           # Centralized API service with request queue
+│   └── style.css        # Global Brutalist Design System
+├── public/              # Static assets and icons
+└── api/                 # Serverless API routes
 ```
 
-## Features in Detail
+## 💎 Design Philosophy
 
-### Real-time Timestamps
-- Fetches actual chapter release dates from the API
-- Displays relative time (e.g., "5h", "2d", "Just now")
-- Caches timestamps for 24 hours to reduce API calls
-- Background fetching for non-blocking page loads
+VRTWEL COMICS moves away from generic "clean" UI in favor of a **Brutalist Manga** style:
+- **High Contrast**: Pure deep grays (`#09090b`) paired with sharp dividers (`#27272a`).
+- **Tactile Feedback**: Heavy 4px - 8px offsets for shadows and borders to make every card feel like a physical comic panel.
+- **Halftone Patterns**: Subtle background textures inspired by traditional manga printing.
 
-### Page Preservation
-- Uses Vue's `<keep-alive>` to preserve page state
-- Navigate between pages without reloading
-- Timestamps persist when switching views
+## 🛡 Performance & Stability
 
-### Cover Image Handling
-- Automatic fallback to placeholder for missing covers
-- Support for multiple image sources
-- CDN integration for fast loading
+The application is engineered for reliability:
+- **Request Throttling**: Automatically spaces out API calls to prevent IP blocks.
+- **Optimized Rendering**: Minimized layout shifts and removed complex KeepAlive logic in favor of stable, reactive state management.
+- **FOUC Prevention**: Global CSS guards ensure the theme is applied instantly upon load.
 
-## API Rate Limiting
+## 📜 License
 
-The application implements smart rate limiting to avoid API errors:
-- 300ms delay between chapter list requests
-- Retry mechanism with exponential backoff
-- Caching to minimize API calls
+This project is for educational and personal use only.
 
-## Deployment
+## 🙌 Credits
 
-This project is configured for Vercel deployment:
-
-```bash
-# Install Vercel CLI
-npm i -g vercel
-
-# Deploy
-vercel
-```
-
-## License
-
-This project is for educational purposes.
-
-## Credits
-
-- Content from Shinigami API
-- Content from Manhwadesu
-- Built with Vue 3 and Vite
+- **Logo**: Custom generated with Nano Banana
+- **Content**: Integrated from multiple high-quality manga/manhwa providers
+- **Development**: Built with Vue 3 & Vite

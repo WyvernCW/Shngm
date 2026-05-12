@@ -3,70 +3,46 @@ import { ref, onMounted, watch } from 'vue';
 import { API } from '../api.js';
 import MangaCard from '../components/MangaCard.vue';
 
-const mangaList = ref([]);
 const mangaListWithDates = ref([]);
 const isLoading = ref(true);
 const activeTab = ref('daily');
 
 const tabs = [
-  { id: 'daily', label: 'Daily' },
-  { id: 'weekly', label: 'Weekly' },
-  { id: 'monthly', label: 'Monthly' }
+  { id: 'daily', label: 'DAILY' },
+  { id: 'weekly', label: 'WEEKLY' },
+  { id: 'monthly', label: 'MONTHLY' }
 ];
+
+const getFallbackDate = (m) => {
+    return m.real_updated_at || m.updated_at || m.created_at || m.release_date || m.last_updated || null;
+};
 
 const loadData = async () => {
     isLoading.value = true;
     mangaListWithDates.value = [];
     try {
         const r = await API.getTrending(activeTab.value, 48);
-        mangaList.value = r?.data || [];
-        mangaListWithDates.value = mangaList.value.map(m => ({ ...m, real_updated_at: null }));
+        const data = r?.data || [];
+        
+        // Initial setup with null dates
+        mangaListWithDates.value = data.map(m => ({ ...m, real_updated_at: null }));
 
-        // Fetch real update times in background (non-blocking, with caching, all items)
-        const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-        const CACHE_KEY = 'vrtwel_date_cache';
-        const CACHE_TTL = 86400000; // 24 hours
-        const cache = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}');
-        const now = Date.now();
-
+        // Background update for real dates
         (async () => {
-            const withDates = [];
-            const newCache = {};
-            for (const m of mangaList.value) {
-                const cached = cache[m.manga_id];
-                if (cached && (now - cached.timestamp) < CACHE_TTL) {
-                    withDates.push({ ...m, real_updated_at: cached.date });
-                    newCache[m.manga_id] = cached;
-                    continue;
-                }
+            for (let i = 0; i < data.length; i++) {
+                const m = data[i];
                 try {
-                    await delay(300);
-                    let chRes;
-                    let retries = 0;
-                    while (retries < 2) {
-                        try {
-                            chRes = await API.getChapterList(m.manga_id);
-                            break;
-                        } catch (e) {
-                            retries++;
-                            if (retries < 2) await delay(500 * retries);
-                        }
-                    }
+                    const chRes = await API.getChapterList(m.manga_id);
                     const chapters = chRes?.data || [];
                     const latestCh = chapters[0];
                     const realDate = latestCh?.release_date || latestCh?.created_at;
                     if (realDate) {
-                        withDates.push({ ...m, real_updated_at: realDate });
-                        newCache[m.manga_id] = { date: realDate, timestamp: now };
-                    } else {
-                        withDates.push({ ...m, real_updated_at: null });
+                        mangaListWithDates.value[i].real_updated_at = realDate;
                     }
                 } catch (e) {
-                    withDates.push({ ...m, real_updated_at: null });
+                    console.error('Error fetching date for', m.manga_id, e);
                 }
             }
-            mangaListWithDates.value = withDates;
-            localStorage.setItem(CACHE_KEY, JSON.stringify(newCache));
         })();
     } catch (e) {
         console.error(e);
@@ -98,19 +74,22 @@ const formatTimeShort = (dateStr) => {
 </script>
 
 <template>
-  <div class="trending-view animate">
-    <h2 class="section-title">Trending</h2>
-
-    <div class="tabs-container">
-      <button
-        v-for="tab in tabs"
-        :key="tab.id"
-        class="tab-btn"
-        :class="{ active: activeTab === tab.id }"
-        @click="activeTab = tab.id"
-      >
-        {{ tab.label }}
-      </button>
+  <div class="trending-view">
+    
+    <div class="page-header">
+      <h2 class="section-title">TRENDING NOW</h2>
+      
+      <div class="comic-tabs">
+        <button
+          v-for="tab in tabs"
+          :key="tab.id"
+          class="comic-tab"
+          :class="{ active: activeTab === tab.id }"
+          @click="activeTab = tab.id"
+        >
+          {{ tab.label }}
+        </button>
+      </div>
     </div>
 
     <div v-if="isLoading" class="grid-skeleton">
@@ -118,50 +97,104 @@ const formatTimeShort = (dateStr) => {
     </div>
     <div v-else class="manga-grid">
       <MangaCard
-        v-for="m in (mangaListWithDates.length > 0 ? mangaListWithDates : mangaList)"
+        v-for="(m, i) in mangaListWithDates"
         :key="m.manga_id"
+        :index="i"
         :title="m.title"
         :coverUrl="resolveImg(m)"
         :latestChapter="m.latest_chapter_number"
         :rating="m.user_rate"
         :href="`#/series/${m.manga_id}`"
         :showStatusBadges="true"
-        :status="m.real_updated_at ? formatTimeShort(m.real_updated_at) : null"
-        :isNew="m.real_updated_at ? (Date.now() - new Date(m.real_updated_at).getTime()) < 86400000 : false"
+        :status="getFallbackDate(m) ? formatTimeShort(getFallbackDate(m)) : null"
+        :isNew="getFallbackDate(m) ? (Date.now() - new Date(getFallbackDate(m)).getTime()) < 18000000 : false"
       />
     </div>
   </div>
 </template>
 
+
 <style scoped>
-.tabs-container {
-  display: inline-flex;
-  background: var(--card-bg);
-  border: 1px solid var(--border);
-  border-radius: 99px;
-  padding: 4px;
-  margin-bottom: 2rem;
-  gap: 4px;
+.trending-view {
+    padding-bottom: 4rem;
 }
 
-.tab-btn {
-  padding: 0.5rem 1.25rem;
-  border-radius: 99px;
-  border: none;
-  background: transparent;
-  color: var(--text-secondary);
-  font-weight: 600;
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: all 0.2s;
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 3rem;
+    border-bottom: var(--border-w) solid var(--border);
+    padding-bottom: 1rem;
+    flex-wrap: wrap;
+    gap: 1.5rem;
 }
 
-.tab-btn:hover {
-  color: var(--text);
+.section-title {
+    font-size: 3.5rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: -2px;
+    margin: 0;
+    line-height: 1;
 }
 
-.tab-btn.active {
-  background: var(--accent);
-  color: white;
+/* Comic Tabs */
+.comic-tabs {
+    display: flex;
+    gap: 0;
+    background: var(--surface);
+    border: var(--border-w) solid var(--border);
+    box-shadow: var(--shadow-offset) var(--shadow-offset) 0 var(--border);
+}
+
+.comic-tab {
+    padding: 12px 24px;
+    font-weight: 900;
+    font-size: 1rem;
+    background: transparent;
+    color: var(--text-secondary);
+    border: none;
+    border-right: var(--border-w) solid var(--border);
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'Outfit', sans-serif;
+}
+
+.comic-tab:last-child {
+    border-right: none;
+}
+
+.comic-tab:hover {
+    color: var(--text);
+    background: var(--bg);
+}
+
+.comic-tab.active {
+    background: var(--accent);
+    color: white;
+}
+
+.grid-skeleton {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: 2rem;
+}
+.skeleton-card {
+    aspect-ratio: 2/3;
+    background: var(--surface);
+    border: var(--border-w) solid var(--border);
+    animation: pulse 1.5s infinite alternate;
+}
+@keyframes pulse {
+    0% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+@media (max-width: 768px) {
+    .page-header { flex-direction: column; align-items: flex-start; }
+    .section-title { font-size: 2.5rem; }
+    .comic-tabs { width: 100%; display: grid; grid-template-columns: 1fr 1fr 1fr; }
+    .comic-tab { padding: 12px 0; font-size: 0.85rem; }
 }
 </style>

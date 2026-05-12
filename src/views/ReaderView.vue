@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import { API } from '../api';
 import { useChapterNavigation } from '../composables/useChapterNavigation';
 import { useDoubleTap } from '../composables/useDoubleTap';
+import { useSwipeNavigation } from '../composables/useSwipeNavigation';
 import { useReaderUI } from '../composables/useReaderUI';
 import ReaderTopBar from '../components/reader/ReaderTopBar.vue';
 import ReaderBottomBar from '../components/reader/ReaderBottomBar.vue';
@@ -25,16 +26,23 @@ const showSettings = ref(false);
 const currentPage = ref(1);
 const libraryUpdated = ref(false);
 
+const getSavedBg = () => {
+  const saved = localStorage.getItem('vrtwel_bg');
+  // If saved is white/light, force it to dark gray to comply with no-white rule
+  if (saved === '#fdfdf9' || saved === '#ffffff' || saved === 'white') return '#18181b';
+  return saved || '#09090b';
+};
+
 const settings = ref({
   readingMode: localStorage.getItem('vrtwel_mode') || 'long-strip',
   direction: 'ltr',
-  bg: localStorage.getItem('vrtwel_bg') || '#0a0908',
+  bg: getSavedBg(),
   fit: localStorage.getItem('vrtwel_fit') || 'width',
   gap: parseInt(localStorage.getItem('vrtwel_gap')) || 0,
   autoAdvance: localStorage.getItem('vrtwel_autoadvance') !== 'false'
 });
 
-const { uiVisible, toggleUI, isScrolling } = useReaderUI();
+const { uiVisible, toggleUI } = useReaderUI();
 const { handleTap } = useDoubleTap(() => toggleUI());
 
 const { 
@@ -46,64 +54,49 @@ const {
   chapterId
 );
 
+useSwipeNavigation({
+  onSwipeLeft: () => {
+    if (hasNext.value) navigateTo(nextChapter.value, 'right');
+  },
+  onSwipeRight: () => {
+    if (hasPrev.value) navigateTo(prevChapter.value, 'left');
+  }
+});
+
 const loadChapter = async () => {
     isLoading.value = true;
     libraryUpdated.value = false;
     currentPage.value = 1;
 
-    console.log('[Reader] loadChapter starting, chapterId:', chapterId.value);
-
     try {
         const res = await API.getChapter(chapterId.value);
-        console.log('[Reader] Chapter API response:', res);
 
         if (res?.data) {
             chapterData.value = res.data;
-            // Try multiple possible paths to find the manga ID
             const ch = res.data.chapter || {};
             const sId = ch.manga_id || ch.mangaId || ch.manga?.id || res.data.manga_id || res.data.mangaId || res.data.series_id || res.data.manga?.id;
-            console.log('[Reader] Chapter data structure:', ch);
-            console.log('[Reader] Series ID from chapter:', sId);
 
-            if (!sId) {
-                console.error('[Reader] Cannot find manga ID in chapter data. Cannot save to library.');
-            } else if (!seriesDetail.value || seriesDetail.value.manga_id !== sId) {
-                console.log('[Reader] Fetching series detail for:', sId);
-                const [dRes, cRes] = await Promise.all([
-                    API.getDetail(sId),
-                    API.getChapterList(sId)
-                ]);
-                console.log('[Reader] Series detail response:', dRes);
-                console.log('[Reader] Chapters list response:', cRes);
-
-                console.log('[Reader] Raw series detail data:', dRes?.data);
-                // Handle nested data structure - API might return { manga: { ... } } or direct data
-                const rawData = dRes?.data;
-                if (rawData?.manga) {
-                    seriesDetail.value = rawData.manga;
-                    console.log('[Reader] Using nested manga data');
-                } else if (rawData?.data) {
-                    seriesDetail.value = rawData.data;
-                    console.log('[Reader] Using nested data property');
+            if (sId) {
+                if (!seriesDetail.value || seriesDetail.value.manga_id !== sId) {
+                    const [dRes, cRes] = await Promise.all([
+                        API.getDetail(sId),
+                        API.getChapterList(sId)
+                    ]);
+                    
+                    const rawData = dRes?.data;
+                    if (rawData?.manga) seriesDetail.value = rawData.manga;
+                    else if (rawData?.data) seriesDetail.value = rawData.data;
+                    else seriesDetail.value = rawData;
+                    
+                    allChapters.value = cRes?.data || cRes?.data?.data || [];
+                    updateLibrary();
                 } else {
-                    seriesDetail.value = rawData;
-                    console.log('[Reader] Using direct data');
+                    updateLibrary();
                 }
-                allChapters.value = cRes?.data || cRes?.data?.data || [];
-
-                console.log('[Reader] Series detail set:', seriesDetail.value?.manga_id, seriesDetail.value?.title);
-                console.log('[Reader] Full series object:', seriesDetail.value);
-
-                // Sync with Library (Recently Read) - ONLY after we have series data
-                updateLibrary();
-            } else {
-                console.log('[Reader] Using cached series detail');
-                // Still update library even with cached data
-                updateLibrary();
             }
         }
     } catch (e) {
-        console.error('[Reader] Error in loadChapter:', e);
+        console.error(e);
     } finally {
         isLoading.value = false;
         window.scrollTo(0, 0);
@@ -112,59 +105,28 @@ const loadChapter = async () => {
 
 const getCoverUrl = (series) => {
     if (!series) return '/assets/covers/standard.svg';
-
-    // Try all possible cover image fields
     const candidates = [
-        series.cover_image_url,
-        series.coverImageUrl,
-        series.cover_url,
-        series.coverUrl,
-        series.cover,
-        series.cover_image,
-        series.coverImage,
-        series.thumbnail_url,
-        series.thumbnailUrl,
-        series.thumbnail,
-        series.poster_url,
-        series.posterUrl,
-        series.image_url,
-        series.imageUrl,
-        series.banner_url,
-        series.bannerUrl,
-        series.featured_cover,
-        series.featuredCover
+        series.cover_image_url, series.coverImageUrl, series.cover_url, series.coverUrl,
+        series.cover, series.cover_image, series.coverImage, series.thumbnail_url,
+        series.thumbnailUrl, series.thumbnail, series.poster_url, series.posterUrl,
+        series.image_url, series.imageUrl, series.banner_url, series.bannerUrl
     ];
 
-    console.log('[Reader] Cover candidates:', candidates);
-
     for (const url of candidates) {
-        if (url && typeof url === 'string' && url.trim() !== '') {
-            console.log('[Reader] Using cover URL:', url);
-            return url;
-        }
+        if (url && typeof url === 'string' && url.trim() !== '') return url;
     }
-
-    // Try nested manga object
     if (series.manga) {
         const nested = getCoverUrl(series.manga);
         if (nested !== '/assets/covers/standard.svg') return nested;
     }
-
-    console.warn('[Reader] No cover found, using fallback');
     return '/assets/covers/standard.svg';
 };
 
 const updateLibrary = () => {
-    console.log('[Reader] updateLibrary called', { seriesDetail: seriesDetail.value?.manga_id, chapterId: chapterId.value });
-    if (!seriesDetail.value?.manga_id) {
-        console.warn('[Reader] Cannot save to library - no series detail');
-        return;
-    }
+    if (!seriesDetail.value?.manga_id) return;
     try {
         const library = JSON.parse(localStorage.getItem('vrtwel_library') || '[]');
         const index = library.findIndex(item => item.mangaId === seriesDetail.value.manga_id);
-
-        console.log('[Reader] Series detail fields:', Object.keys(seriesDetail.value));
 
         const historyItem = {
             mangaId: seriesDetail.value.manga_id,
@@ -175,14 +137,10 @@ const updateLibrary = () => {
             totalChapters: allChapters.value?.length || 0,
             timestamp: Date.now()
         };
-        console.log('[Reader] Saving to library:', historyItem);
         if (index > -1) library.splice(index, 1);
         library.unshift(historyItem);
         localStorage.setItem('vrtwel_library', JSON.stringify(library.slice(0, 50)));
-        console.log('[Reader] Library saved successfully');
-    } catch (err) {
-        console.error('[Reader] Failed to save library:', err);
-    }
+    } catch (err) {}
 };
 
 watch(chapterId, loadChapter, { immediate: true });
@@ -196,7 +154,6 @@ const images = computed(() => {
 });
 
 const handleScroll = () => {
-    // Page detection
     const imgs = document.querySelectorAll('.reader-img');
     let current = 1;
     imgs.forEach((img, i) => {
@@ -205,7 +162,6 @@ const handleScroll = () => {
     });
     currentPage.value = current;
 
-    // Detect end of chapter - update library when user finishes reading
     const scrollPos = window.innerHeight + window.scrollY;
     const threshold = document.documentElement.scrollHeight - 200;
     if (scrollPos >= threshold && !isLoading.value && !libraryUpdated.value) {
@@ -221,13 +177,8 @@ const jumpToPage = (pageIndex) => {
     }
 };
 
-onMounted(() => {
-    window.addEventListener('scroll', handleScroll, { passive: true });
-});
-
-onUnmounted(() => {
-    window.removeEventListener('scroll', handleScroll);
-});
+onMounted(() => { window.addEventListener('scroll', handleScroll, { passive: true }); });
+onUnmounted(() => { window.removeEventListener('scroll', handleScroll); });
 
 const updateSettings = (newVal) => {
     settings.value = { ...newVal };
@@ -237,7 +188,6 @@ const updateSettings = (newVal) => {
     localStorage.setItem('vrtwel_gap', newVal.gap);
     localStorage.setItem('vrtwel_autoadvance', newVal.autoAdvance);
 };
-
 </script>
 
 <template>
@@ -271,11 +221,11 @@ const updateSettings = (newVal) => {
         
         <div v-for="(src, i) in images" :key="src" class="img-wrap">
           <img :src="src" 
-               class="reader-img" 
+               class="reader-img comic-panel" 
                loading="lazy"
                :style="{ marginBottom: settings.readingMode === 'long-strip' ? settings.gap + 'px' : 0 }"
                @error="e => e.target.style.display = 'none'">
-          <div v-if="settings.readingMode !== 'long-strip'" class="page-label">Page {{ i + 1 }}</div>
+          <div v-if="settings.readingMode !== 'long-strip'" class="page-label">PG {{ i + 1 }}</div>
         </div>
       </div>
 
@@ -287,14 +237,15 @@ const updateSettings = (newVal) => {
         :hasPrev="hasPrev"
         :hasNext="hasNext"
         :isVisible="uiVisible"
+        @hide-ui="uiVisible = false"
         @navigate="dir => navigateTo(dir === 'prev' ? prevChapter : nextChapter, dir === 'prev' ? 'left' : 'right')"
         @jump="jumpToPage"
         @select-chapter="ch => navigateTo(ch, parseFloat(ch.chapter_number) > parseFloat(chapterNumber) ? 'right' : 'left')"
       />
 
-      <!-- Transition Banner -->
+      <!-- Transition Banner Brutalist -->
       <transition name="slide-banner">
-        <div v-if="showBanner" class="nav-banner" :class="bannerDirection">
+        <div v-if="showBanner" class="nav-banner comic-panel" :class="bannerDirection">
           {{ bannerText }}
         </div>
       </transition>
@@ -314,7 +265,6 @@ const updateSettings = (newVal) => {
 .reader-view {
   min-height: 100vh;
   width: 100%;
-  color: white;
   overflow-x: hidden;
   position: relative;
 }
@@ -334,6 +284,12 @@ const updateSettings = (newVal) => {
   display: block;
   max-width: 100vw;
   height: auto;
+  border-radius: 0; /* Override comic panel radius if any */
+}
+
+/* For reader we don't want massive shadows per image unless spaced out */
+.reader-container.long-strip .reader-img {
+    box-shadow: none; border: none; border-bottom: var(--border-w) solid var(--border);
 }
 
 .fit.width .reader-img { width: 100%; max-width: 900px; margin: 0 auto; }
@@ -343,25 +299,24 @@ const updateSettings = (newVal) => {
 .nav-banner {
   position: fixed;
   top: 50%;
-  background: var(--accent);
-  color: white;
+  background: var(--yellow);
+  color: var(--text);
   padding: 1.5rem 3rem;
-  border-radius: 99px;
-  font-size: 1.8rem;
-  font-weight: 800;
+  font-size: 2rem;
+  font-weight: 900;
   z-index: 5000;
-  box-shadow: 0 15px 40px rgba(0,0,0,0.5);
   pointer-events: none;
+  text-transform: uppercase;
 }
 
 .nav-banner.right { right: 10%; transform: translateY(-50%); }
 .nav-banner.left { left: 10%; transform: translateY(-50%); }
 
 .slide-banner-enter-active, .slide-banner-leave-active {
-  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-.slide-banner-enter-from { opacity: 0; transform: translateY(-50%) scale(0.8) translateX(50px); }
-.slide-banner-leave-to { opacity: 0; transform: translateY(-50%) scale(0.8) translateX(-50px); }
+.slide-banner-enter-from { opacity: 0; transform: translateY(-50%) scale(0.8) translateX(100px); }
+.slide-banner-leave-to { opacity: 0; transform: translateY(-50%) scale(0.8) translateX(-100px); }
 
 .loader-wrap {
   position: fixed;
@@ -369,14 +324,14 @@ const updateSettings = (newVal) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #000;
+  background: var(--bg);
   z-index: 9999;
 }
 
 .page-label {
     text-align: center;
     padding: 1rem;
-    color: var(--muted);
-    font-weight: 600;
+    color: var(--text-secondary);
+    font-weight: 900;
 }
 </style>

@@ -24,12 +24,16 @@ export function useSwipeNavigation({ onSwipeLeft, onSwipeRight }) {
         const distanceY = Math.abs(touchEndY - touchStartY);
         const timeDiff = touchEndTime - touchStartTime;
 
+        const screenWidth = window.innerWidth;
+        const startedOnRight = touchStartX > (screenWidth / 2);
+        const startedOnLeft = touchStartX < (screenWidth / 2);
+
         if (timeDiff <= MAX_TIME && distanceY <= MAX_VERTICAL_DRIFT) {
-            if (distanceX < -MIN_DISTANCE) {
-                // Swipe Left -> Next
+            if (distanceX < -MIN_DISTANCE && startedOnRight) {
+                // Swipe Left from right half -> Next
                 if (onSwipeLeft) onSwipeLeft();
-            } else if (distanceX > MIN_DISTANCE) {
-                // Swipe Right -> Prev
+            } else if (distanceX > MIN_DISTANCE && startedOnLeft) {
+                // Swipe Right from left half -> Prev
                 if (onSwipeRight) onSwipeRight();
             }
         }

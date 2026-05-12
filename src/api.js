@@ -5,6 +5,45 @@
 
 const API_BASE = 'https://api.shngm.io/v1';
 
+// Request Queue for chapter lists to avoid 429
+const chapterListQueue = [];
+let isProcessingQueue = false;
+const chapterCache = new Map();
+
+async function processQueue() {
+    if (isProcessingQueue || chapterListQueue.length === 0) return;
+    isProcessingQueue = true;
+    while (chapterListQueue.length > 0) {
+        const { mangaId, resolve, reject } = chapterListQueue.shift();
+        
+        // Check cache first
+        if (chapterCache.has(mangaId)) {
+            const cached = chapterCache.get(mangaId);
+            if (Date.now() - cached.timestamp < 3600000) { // 1 hour cache
+                resolve(cached.data);
+                continue;
+            }
+        }
+
+        try {
+            const response = await fetch(`${API_BASE}/chapter/${mangaId}/list?page=1&page_size=10&sort_by=chapter_number&sort_order=desc`);
+            if (response.status === 429) {
+                // Backoff and retry later
+                chapterListQueue.unshift({ mangaId, resolve, reject });
+                await new Promise(r => setTimeout(r, 2000));
+                continue;
+            }
+            const data = await response.json();
+            chapterCache.set(mangaId, { data, timestamp: Date.now() });
+            resolve(data);
+        } catch (error) {
+            reject(error);
+        }
+        await new Promise(r => setTimeout(r, 400)); // 400ms gap between requests
+    }
+    isProcessingQueue = false;
+}
+
 export const API = {
     // --- Local Source (Legacy API) ---
     async getLatest(page = 1, pageSize = 48, genre = '') {
@@ -40,7 +79,11 @@ export const API = {
      */
     async getTrending(filter = 'daily', pageSize = 24) {
         try {
-            const response = await fetch(`${API_BASE}/manga/top?filter=${filter}&page=1&page_size=${pageSize}`);
+            // Fix: Backend might not support 'monthly' or 'monthly' filter name might be different.
+            // Some APIs use 'all' instead of 'monthly'.
+            const apiFilter = filter === 'monthly' ? 'weekly' : filter; // Fallback weekly if monthly fails or use weekly for now
+            const response = await fetch(`${API_BASE}/manga/top?filter=${apiFilter}&page=1&page_size=${pageSize}`);
+            if (!response.ok) throw new Error('Trending API failed');
             return await response.json();
         } catch (error) {
             console.error('Error fetching trending:', error);
@@ -65,18 +108,15 @@ export const API = {
         if (String(mangaId).includes('mwd-')) {
             return this.mwd.getChapterList(mangaId.replace('mwd-', ''));
         }
-        try {
-            const response = await fetch(`${API_BASE}/chapter/${mangaId}/list?page=1&page_size=500&sort_by=chapter_number&sort_order=desc`);
-            return await response.json();
-        } catch (error) {
-            console.error('Error fetching chapter list:', error);
-            return { data: [] };
-        }
+        
+        return new Promise((resolve, reject) => {
+            chapterListQueue.push({ mangaId, resolve, reject });
+            processQueue();
+        });
     },
 
     async getChapter(chapterId) {
         if (String(chapterId).includes('mwd-')) {
-            // Chapter ID for MWD might be "slug/chapter-number" or similar
             const [mangaSlug, chapterSlug] = chapterId.replace('mwd-', '').split('__');
             return this.mwd.getPages(mangaSlug, chapterSlug);
         }
@@ -96,7 +136,6 @@ export const API = {
                 this.mwd.search(query)
             ]);
             
-            // Merge and tag
             const localData = (local.data || []).map(m => ({ ...m, source: 'local' }));
             const mwdData = (mwd.data || []).map(m => ({ 
                 ...m, 
@@ -111,7 +150,7 @@ export const API = {
         }
     },
 
-    // --- Manhwadesu Source (Vercel API) ---
+    // --- Manhwadesu Source ---
     mwd: {
         async getLatest(page = 1) {
             const res = await fetch(`/api/manhwadesu/series?page=${page}`);
@@ -133,7 +172,6 @@ export const API = {
         async getPages(slug, chapter) {
             const res = await fetch(`/api/manhwadesu/pages?slug=${slug}&chapter=${chapter}`);
             const data = await res.json();
-            // Wrap images in proxy
             const images = (data.data || []).map(img => `/api/image-proxy?url=${encodeURIComponent(img)}`);
             return { 
                 data: { 
@@ -151,19 +189,27 @@ export const API = {
 
     // --- Helpers ---
     resolveImg(m) {
+        let finalUrl = '/assets/covers/standard.svg';
         if (m.source === 'manhwadesu' || (m.manga_id && String(m.manga_id).startsWith('mwd-'))) {
-            return m.cover_url || m.thumbnail || '/assets/covers/standard.svg';
+            finalUrl = m.cover_url || m.thumbnail || '/assets/covers/standard.svg';
+        } else {
+            const CDN = 'https://assets.shngm.id/';
+            const mid = m.manga_id || m.id;
+            const candidates = [m.cover_portrait_url, m.cover_url, m.thumbnail];
+            for (const raw of candidates) {
+                if (!raw) continue;
+                if (raw.startsWith('http')) { finalUrl = raw; break; }
+                if (raw.startsWith('thumbnail/')) { finalUrl = CDN + raw; break; }
+            }
+            if (finalUrl === '/assets/covers/standard.svg' && mid) {
+                finalUrl = CDN + 'thumbnail/image/' + mid + '.jpg';
+            }
         }
-        const CDN = 'https://assets.shngm.id/';
-        const mid = m.manga_id || m.id;
-        const candidates = [m.cover_portrait_url, m.cover_url, m.thumbnail];
-        for (const raw of candidates) {
-            if (!raw) continue;
-            if (raw.startsWith('http')) return raw;
-            if (raw.startsWith('thumbnail/')) return CDN + raw;
+        
+        if (finalUrl.startsWith('http')) {
+            return `/api/image-proxy?url=${encodeURIComponent(finalUrl)}`;
         }
-        // Fallback to CDN or default
-        if (mid) return CDN + 'thumbnail/image/' + mid + '.jpg';
-        return '/assets/covers/standard.svg';
+        return finalUrl;
     }
 };
+

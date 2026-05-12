@@ -1,5 +1,5 @@
 <script setup>
-import { X, Layout, Maximize2, Monitor, Minimize, Sun, Moon, Type } from 'lucide-vue-next';
+import { X, Layout, Maximize2 } from 'lucide-vue-next';
 
 const props = defineProps({
     isOpen: Boolean,
@@ -9,21 +9,20 @@ const props = defineProps({
 const emit = defineEmits(['close', 'update']);
 
 const modes = [
-    { id: 'long-strip', label: 'Long Strip', icon: Layout },
-    { id: 'single-page', label: 'Single Page', icon: Maximize2 }
+    { id: 'long-strip', label: 'STRIP', icon: Layout },
+    { id: 'single-page', label: 'PAGE', icon: Maximize2 }
 ];
 
 const bgs = [
-    { id: '#020617', label: 'Space', class: 'bg-space' },
-    { id: '#111111', label: 'Dark', class: 'bg-dark' },
-    { id: '#ffffff', label: 'Light', class: 'bg-light' },
-    { id: '#f4ecd8', label: 'Sepia', class: 'bg-sepia' }
+    { id: '#09090b', label: 'INK', class: 'bg-dark' },
+    { id: '#18181b', label: 'PAPER', class: 'bg-light' },
+    { id: '#27272a', label: 'SEPIA', class: 'bg-sepia' }
 ];
 
 const fits = [
-    { id: 'width', label: 'Fit Width' },
-    { id: 'height', label: 'Fit Height' },
-    { id: 'original', label: 'Original' }
+    { id: 'width', label: 'FIT WIDTH' },
+    { id: 'height', label: 'FIT HEIGHT' },
+    { id: 'original', label: 'ORIGINAL' }
 ];
 
 const update = (key, val) => {
@@ -33,35 +32,33 @@ const update = (key, val) => {
 
 <template>
   <transition name="slide-panel">
-    <div v-if="isOpen" class="reader-settings glass">
+    <div v-if="isOpen" class="reader-settings comic-panel">
       <div class="settings-header">
-        <h3>Reader Settings</h3>
-        <button class="close-btn" @click="emit('close')"><X :size="20" /></button>
+        <h3>SETTINGS</h3>
+        <button class="comic-button secondary icon-btn" @click="emit('close')"><X :size="24" strokeWidth="3" /></button>
       </div>
 
       <div class="settings-body">
-        <!-- Reading Mode -->
         <div class="setting-group">
-          <label>Reading Mode</label>
+          <label>MODE</label>
           <div class="mode-grid">
             <button v-for="mode in modes" 
                     :key="mode.id" 
-                    class="mode-btn"
+                    class="comic-panel mode-btn"
                     :class="{ 'active': currentSettings.readingMode === mode.id }"
                     @click="update('readingMode', mode.id)">
-              <component :is="mode.icon" :size="18" />
+              <component :is="mode.icon" :size="24" strokeWidth="2.5" />
               <span>{{ mode.label }}</span>
             </button>
           </div>
         </div>
 
-        <!-- Scale / Fit -->
         <div class="setting-group">
-          <label>Image Fit</label>
+          <label>IMAGE FIT</label>
           <div class="fit-row">
             <button v-for="fit in fits" 
                     :key="fit.id"
-                    class="fit-btn"
+                    class="comic-panel fit-btn"
                     :class="{ 'active': currentSettings.fit === fit.id }"
                     @click="update('fit', fit.id)">
               {{ fit.label }}
@@ -69,9 +66,8 @@ const update = (key, val) => {
           </div>
         </div>
 
-        <!-- Background -->
         <div class="setting-group">
-          <label>Background</label>
+          <label>PAPER COLOR</label>
           <div class="bg-grid">
             <button v-for="bg in bgs" 
                     :key="bg.id"
@@ -83,34 +79,25 @@ const update = (key, val) => {
           </div>
         </div>
 
-        <!-- Page Gap -->
         <div class="setting-group">
           <div class="label-row">
-             <label>Page Gap</label>
-             <span class="value">{{ currentSettings.gap }}px</span>
+             <label>GUTTER ({{ currentSettings.gap }}PX)</label>
           </div>
           <input type="range" 
                  min="0" max="100" step="10" 
                  :value="currentSettings.gap" 
                  @input="e => update('gap', parseInt(e.target.value))"
-                 class="slider">
+                 class="slider comic-panel">
         </div>
 
-        <!-- Others -->
-        <div class="setting-group">
-          <div class="toggle-row">
-            <label>Auto-advance Chapter</label>
-            <div class="toggle" 
-                 :class="{ 'active': currentSettings.autoAdvance }"
-                 @click="update('autoAdvance', !currentSettings.autoAdvance)">
-              <div class="knob"></div>
-            </div>
-          </div>
+        <div class="setting-group" style="margin-top: 2rem;">
+          <button class="comic-panel mode-btn" style="width: 100%; flex-direction: row; justify-content: space-between;"
+                  :class="{ 'active': currentSettings.autoAdvance }"
+                  @click="update('autoAdvance', !currentSettings.autoAdvance)">
+              <span>AUTO-ADVANCE</span>
+              <div class="checkbox" :class="{ 'checked': currentSettings.autoAdvance }"></div>
+          </button>
         </div>
-      </div>
-
-      <div class="settings-footer">
-        <p>Settings are saved automatically</p>
       </div>
     </div>
   </transition>
@@ -122,15 +109,15 @@ const update = (key, val) => {
   top: 0;
   right: 0;
   bottom: 0;
-  width: 340px;
-  background: rgba(10, 18, 40, 0.95);
-  backdrop-filter: blur(20px);
+  width: 380px;
+  background: var(--surface);
   z-index: 2000;
   padding: 2rem;
   display: flex;
   flex-direction: column;
-  box-shadow: -10px 0 50px rgba(0,0,0,0.5);
-  border-left: 1px solid var(--border);
+  border-right: none;
+  border-top: none;
+  border-bottom: none;
 }
 
 .settings-header {
@@ -138,47 +125,45 @@ const update = (key, val) => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 2.5rem;
+  border-bottom: var(--border-w) solid var(--border);
+  padding-bottom: 1rem;
 }
 
-.settings-header h3 { font-size: 1.2rem; font-weight: 800; margin: 0; color: var(--accent); }
-.close-btn { background: none; border: none; color: white; cursor: pointer; padding: 0.5rem; }
+.settings-header h3 { font-size: 2rem; font-weight: 900; margin: 0; color: var(--text); }
+.icon-btn { padding: 8px; box-shadow: 2px 2px 0 var(--border); border-radius: 0; }
 
-.setting-group { margin-bottom: 2rem; }
-.setting-group label { display: block; font-size: 0.8rem; font-weight: 700; color: var(--muted); margin-bottom: 0.8rem; text-transform: uppercase; letter-spacing: 1px; }
+.setting-group { margin-bottom: 2.5rem; }
+.setting-group label { display: block; font-size: 1.2rem; font-weight: 900; color: var(--text); margin-bottom: 1rem; }
 
-.mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
+.mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 .mode-btn { 
-  background: var(--card-bg); border: 1px solid var(--border); color: white; padding: 0.8rem; border-radius: 12px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 0.5rem; transition: all 0.2s;
+  padding: 1rem; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 0.5rem; box-shadow: 4px 4px 0 var(--border);
 }
-.mode-btn.active { border-color: var(--accent); background: rgba(139, 92, 246, 0.15); color: var(--accent); }
+.mode-btn.active { background: var(--accent); color: white; transform: translate(2px, 2px); box-shadow: 2px 2px 0 var(--border); }
+.mode-btn span { font-weight: 900; }
 
-.fit-row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-.fit-btn { background: var(--card-bg); border: 1px solid var(--border); color: white; padding: 0.5rem 1rem; border-radius: 99px; cursor: pointer; font-size: 0.8rem; font-weight: 600; }
-.fit-btn.active { background: var(--accent); border-color: var(--accent); }
+.fit-row { display: flex; gap: 0.8rem; flex-wrap: wrap; }
+.fit-btn { padding: 0.8rem 1rem; cursor: pointer; font-size: 0.9rem; font-weight: 900; box-shadow: 3px 3px 0 var(--border); }
+.fit-btn.active { background: var(--yellow); transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--border); }
 
 .bg-grid { display: flex; gap: 1rem; }
-.bg-btn { width: 40px; height: 40px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; transform: scale(0.9); transition: all 0.2s; }
-.bg-btn.active { border-color: var(--accent); transform: scale(1.1); }
-.bg-space { background: #020617; }
-.bg-dark { background: #111; }
-.bg-light { background: #fff; }
+.bg-btn { width: 50px; height: 50px; border: var(--border-w) solid var(--border); cursor: pointer; transition: all 0.1s; box-shadow: 3px 3px 0 var(--border); }
+.bg-btn:hover { transform: translate(-2px, -2px); box-shadow: 5px 5px 0 var(--border); }
+.bg-btn.active { border-color: var(--accent); transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--accent); }
+.bg-dark { background: #09090b; }
+.bg-light { background: #fdfdf9; }
 .bg-sepia { background: #f4ecd8; }
 
-.slider { width: 100%; height: 6px; background: var(--card-bg); border-radius: 3px; cursor: pointer; -webkit-appearance: none; }
-.slider::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; background: var(--accent); border-radius: 50%; cursor: pointer; }
+.slider { width: 100%; height: 24px; background: var(--bg); cursor: pointer; -webkit-appearance: none; padding: 0; }
+.slider::-webkit-slider-thumb { -webkit-appearance: none; width: 24px; height: 24px; background: var(--accent); border-left: var(--border-w) solid var(--border); border-right: var(--border-w) solid var(--border); cursor: pointer; }
 
-.toggle-row { display: flex; justify-content: space-between; align-items: center; }
-.toggle { width: 48px; height: 26px; background: var(--card-bg); border-radius: 13px; position: relative; cursor: pointer; transition: all 0.3s; }
-.toggle.active { background: var(--accent); }
-.knob { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; background: white; border-radius: 50%; transition: all 0.3s; }
-.toggle.active .knob { left: 25px; }
+.checkbox { width: 24px; height: 24px; border: var(--border-w) solid var(--border); background: var(--surface); transition: background 0.1s; }
+.checkbox.checked { background: var(--text); }
 
-.settings-footer { margin-top: auto; text-align: center; font-size: 0.75rem; color: var(--muted); }
-
-.slide-panel-enter-active, .slide-panel-leave-active { transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+.slide-panel-enter-active, .slide-panel-leave-active { transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
 .slide-panel-enter-from, .slide-panel-leave-to { transform: translateX(100%); }
 
-@media (max-width: 400px) {
-  .reader-settings { width: 100%; }
+@media (max-width: 480px) {
+  .reader-settings { width: 100%; border-left: none; }
 }
 </style>

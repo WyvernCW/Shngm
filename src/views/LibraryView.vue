@@ -14,52 +14,22 @@ const loadLibrary = async () => {
             items.value = JSON.parse(saved);
             itemsWithRealDates.value = items.value.map(i => ({ ...i, real_updated_at: null }));
 
-            // Fetch real update times in background (non-blocking, with caching)
-            const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-            const CACHE_KEY = 'vrtwel_date_cache';
-            const CACHE_TTL = 86400000; // 24 hours
-            const cache = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}');
-            const now = Date.now();
-
+            // Background update for real dates
             (async () => {
-                const withDates = [];
-                const newCache = {};
-                for (const item of items.value) {
-                    const cached = cache[item.mangaId];
-                    if (cached && (now - cached.timestamp) < CACHE_TTL) {
-                        withDates.push({ ...item, real_updated_at: cached.date });
-                        newCache[item.mangaId] = cached;
-                        continue;
-                    }
+                for (let i = 0; i < items.value.length; i++) {
+                    const item = items.value[i];
                     try {
-                        await delay(300);
-                        let chRes;
-                        let retries = 0;
-                        while (retries < 2) {
-                            try {
-                                chRes = await API.getChapterList(item.mangaId);
-                                break;
-                            } catch (e) {
-                                retries++;
-                                if (retries < 2) await delay(500 * retries);
-                            }
-                        }
+                        const chRes = await API.getChapterList(item.mangaId);
                         const chapters = chRes?.data || [];
                         const latestCh = chapters[0];
                         const realDate = latestCh?.release_date || latestCh?.created_at;
                         if (realDate) {
-                            withDates.push({ ...item, real_updated_at: realDate });
-                            newCache[item.mangaId] = { date: realDate, timestamp: now };
-                        } else {
-                            withDates.push({ ...item, real_updated_at: null });
+                            itemsWithRealDates.value[i].real_updated_at = realDate;
                         }
-                    } catch (e) {
-                        withDates.push({ ...item, real_updated_at: null });
-                    }
+                    } catch (e) {}
                 }
-                itemsWithRealDates.value = withDates;
-                localStorage.setItem(CACHE_KEY, JSON.stringify(newCache));
             })();
+
         } catch (err) {
             console.error('[Library] Failed to parse library:', err);
             items.value = [];
@@ -71,9 +41,8 @@ const loadLibrary = async () => {
 };
 
 onMounted(loadLibrary);
-onActivated(loadLibrary); // Re-load when navigating back to this view
+onActivated(loadLibrary);
 
-// Reading Statistics
 const stats = computed(() => {
     const displayItems = itemsWithRealDates.value.length > 0 ? itemsWithRealDates.value : items.value;
     if (displayItems.length === 0) return null;
@@ -87,7 +56,6 @@ const stats = computed(() => {
         return sum;
     }, 0) / totalSeries * 100;
 
-    // Calculate reading streak (consecutive days with activity)
     const timestamps = displayItems.map(i => i.timestamp).sort((a, b) => b - a);
     let streak = 0;
     if (timestamps.length > 0) {
@@ -119,17 +87,13 @@ const stats = computed(() => {
 
 const formatTimeShort = (dateStr) => {
     if (!dateStr) return '';
-
-    // Parse the date (handles both ISO strings and timestamps)
     const date = new Date(dateStr);
     if (isNaN(date.getTime())) return '';
-
     const now = new Date();
     const diffMs = now - date;
     const diffMins = Math.floor(diffMs / 1000 / 60);
     const diffHours = Math.floor(diffMs / 1000 / 3600);
     const diffDays = Math.floor(diffHours / 24);
-
     if (diffMins < 5) return 'Just now';
     if (diffMins < 60) return `${diffMins}m`;
     if (diffHours < 24) return `${diffHours}h`;
@@ -142,100 +106,121 @@ const isRecentlyUpdated = (dateStr) => {
     const date = new Date(dateStr);
     if (isNaN(date.getTime())) return false;
     const now = Date.now();
-    return (now - date.getTime()) < 86400000;
+    return (now - date.getTime()) < 18000000;
 };
 
-// Calculate reading progress based on chapter number vs total chapters
 const calculateProgress = (item) => {
     if (!item.totalChapters || !item.chapterNumber) return 0;
     const progress = (parseInt(item.chapterNumber) / parseInt(item.totalChapters)) * 100;
     return Math.min(Math.max(progress, 0), 100);
 };
+
+const getFallbackDate = (m) => {
+    return m.real_updated_at || m.timestamp || null;
+};
 </script>
 
 <template>
-  <div class="library-view animate">
-    <h2 class="section-title">My Library</h2>
+  <div class="library-view">
+    
+    <div class="page-header">
+      <h2 class="section-title">MY STASH</h2>
+    </div>
 
-    <!-- Reading Stats -->
+    <!-- Reading Stats Comic Style -->
     <div v-if="stats" class="stats-section">
-      <div class="stat-card">
-        <Library :size="20" />
+      <div class="stat-card comic-panel" style="background: var(--yellow);">
+        <Library :size="24" strokeWidth="2.5" />
         <div class="stat-info">
           <span class="stat-value">{{ stats.totalSeries }}</span>
-          <span class="stat-label">Series</span>
+          <span class="stat-label">SERIES</span>
         </div>
       </div>
-      <div class="stat-card">
-        <BookOpen :size="20" />
+      <div class="stat-card comic-panel" style="background: var(--blue); color: white;">
+        <BookOpen :size="24" strokeWidth="2.5" />
         <div class="stat-info">
           <span class="stat-value">{{ stats.totalChapters }}</span>
-          <span class="stat-label">Chapters</span>
+          <span class="stat-label">CHAPTERS</span>
         </div>
       </div>
-      <div class="stat-card">
-        <TrendingUp :size="20" />
+      <div class="stat-card comic-panel" style="background: var(--green); color: white;">
+        <TrendingUp :size="24" strokeWidth="2.5" />
         <div class="stat-info">
           <span class="stat-value">{{ stats.avgProgress }}%</span>
-          <span class="stat-label">Avg Progress</span>
+          <span class="stat-label">COMPLETED</span>
         </div>
       </div>
-      <div class="stat-card" :class="{ active: stats.streak > 0 }">
-        <Clock :size="20" />
+      <div class="stat-card comic-panel" :style="{ background: stats.streak > 0 ? 'var(--accent)' : 'var(--surface)', color: stats.streak > 0 ? 'white' : 'var(--text)' }">
+        <Clock :size="24" strokeWidth="2.5" />
         <div class="stat-info">
           <span class="stat-value">{{ stats.streak }}</span>
-          <span class="stat-label">Day Streak</span>
+          <span class="stat-label">DAY STREAK</span>
         </div>
       </div>
     </div>
 
-    <div v-if="(itemsWithRealDates.length > 0 ? itemsWithRealDates : items).length > 0" class="manga-grid">
+    <div v-if="itemsWithRealDates.length > 0" class="manga-grid">
       <MangaCard
-        v-for="m in (itemsWithRealDates.length > 0 ? itemsWithRealDates : items)"
+        v-for="(m, i) in itemsWithRealDates"
         :key="m.mangaId"
+        :index="i"
         :title="m.mangaTitle"
         :coverUrl="m.coverUrl"
         :latestChapter="m.chapterNumber"
         :href="`#/read/${m.chapterId}/${m.chapterNumber}`"
         :showStatusBadges="true"
-        :status="m.real_updated_at ? formatTimeShort(m.real_updated_at) : null"
-        :isNew="m.real_updated_at ? isRecentlyUpdated(m.real_updated_at) : false"
+        :status="getFallbackDate(m) ? formatTimeShort(getFallbackDate(m)) : null"
+        :isNew="getFallbackDate(m) ? (Date.now() - new Date(getFallbackDate(m)).getTime()) < 18000000 : false"
         :chapterCount="m.totalChapters"
         :readingProgress="calculateProgress(m)"
       />
     </div>
 
+
     <div v-else class="empty-state">
-      <Library :size="48" style="opacity: 0.3; margin-bottom: 1rem;" />
-      <h3>Your library is empty</h3>
-      <p>Start reading to save comics here automatically.</p>
+      <div class="empty-box comic-panel">
+        <Library :size="64" strokeWidth="1.5" />
+        <h3>NO COMICS IN STASH</h3>
+        <p>Start reading to automatically save your progress here.</p>
+        <a href="#/all" class="comic-button">BROWSE NOW</a>
+      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
+.library-view {
+    padding-bottom: 4rem;
+}
+
+.page-header {
+    margin-bottom: 2rem;
+    border-bottom: var(--border-w) solid var(--border);
+    padding-bottom: 1rem;
+}
+
+.section-title {
+    font-size: 3.5rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: -2px;
+    margin: 0;
+    line-height: 1;
+}
+
 .stats-section {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 1rem;
-  margin-bottom: 2rem;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 3rem;
 }
 
 .stat-card {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 1rem;
-  background: var(--card-bg);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  color: var(--text-secondary);
-}
-
-.stat-card.active {
-  border-color: var(--accent);
-  background: rgba(220, 38, 38, 0.08);
-  color: var(--accent);
+  gap: 1rem;
+  padding: 1.5rem;
+  color: var(--text);
 }
 
 .stat-info {
@@ -244,18 +229,55 @@ const calculateProgress = (item) => {
 }
 
 .stat-value {
-  font-size: 1.25rem;
-  font-weight: 800;
-  color: var(--text);
+  font-size: 2rem;
+  font-weight: 900;
   line-height: 1;
+  letter-spacing: -1px;
 }
 
 .stat-label {
-  font-size: 0.75rem;
-  margin-top: 2px;
+  font-size: 0.8rem;
+  font-weight: 900;
+  margin-top: 4px;
+  opacity: 0.9;
 }
 
-.stat-card.active .stat-value {
-  color: var(--accent);
+.empty-state {
+    padding: 4rem 0;
+    display: flex;
+    justify-content: center;
+}
+
+.empty-box {
+    padding: 4rem;
+    text-align: center;
+    background: var(--surface);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+    max-width: 500px;
+}
+
+.empty-box h3 {
+    font-size: 2rem;
+    font-weight: 900;
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: -1px;
+}
+
+.empty-box p {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+}
+
+@media (max-width: 768px) {
+    .section-title { font-size: 2.5rem; }
+    .stats-section { grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .stat-card { padding: 1rem; }
+    .stat-value { font-size: 1.5rem; }
+    .empty-box { padding: 2rem; }
 }
 </style>

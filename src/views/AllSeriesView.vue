@@ -10,7 +10,6 @@ const props = defineProps({
 const page = computed(() => parseInt(props.params.parts[0]) || 1);
 const genre = computed(() => props.params.queryParams.genre || '');
 
-const mangaList = ref([]);
 const mangaListWithDates = ref([]);
 const totalPages = ref(20);
 const isLoading = ref(true);
@@ -20,57 +19,28 @@ const loadData = async () => {
     mangaListWithDates.value = [];
     try {
         const r = await API.getAllSeries(page.value, 32, genre.value);
-        mangaList.value = r?.data || [];
+        const data = r?.data || [];
         totalPages.value = r?.meta?.last_page || 20;
-        mangaListWithDates.value = mangaList.value.map(m => ({ ...m, real_updated_at: null }));
+        
+        mangaListWithDates.value = data.map(m => ({ ...m, real_updated_at: null }));
 
-        // Fetch real update times in background (non-blocking, with caching, all items)
-        const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-        const CACHE_KEY = 'vrtwel_date_cache';
-        const CACHE_TTL = 86400000; // 24 hours
-        const cache = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}');
-        const now = Date.now();
-
+        // Background update for real dates
         (async () => {
-            const withDates = [];
-            const newCache = {};
-            for (const m of mangaList.value) {
-                const cached = cache[m.manga_id];
-                if (cached && (now - cached.timestamp) < CACHE_TTL) {
-                    withDates.push({ ...m, real_updated_at: cached.date });
-                    newCache[m.manga_id] = cached;
-                    continue;
-                }
+            for (let i = 0; i < data.length; i++) {
+                const m = data[i];
                 try {
-                    await delay(300);
-                    let chRes;
-                    let retries = 0;
-                    while (retries < 2) {
-                        try {
-                            chRes = await API.getChapterList(m.manga_id);
-                            break;
-                        } catch (e) {
-                            retries++;
-                            if (retries < 2) await delay(500 * retries);
-                        }
-                    }
+                    const chRes = await API.getChapterList(m.manga_id);
                     const chapters = chRes?.data || [];
                     const latestCh = chapters[0];
                     const realDate = latestCh?.release_date || latestCh?.created_at;
                     if (realDate) {
-                        withDates.push({ ...m, real_updated_at: realDate });
-                        newCache[m.manga_id] = { date: realDate, timestamp: now };
-                    } else {
-                        withDates.push({ ...m, real_updated_at: null });
+                        mangaListWithDates.value[i].real_updated_at = realDate;
                     }
-                } catch (e) {
-                    withDates.push({ ...m, real_updated_at: null });
-                }
+                } catch (e) {}
             }
-            // No remaining items - all processed
-            mangaListWithDates.value = withDates;
-            localStorage.setItem(CACHE_KEY, JSON.stringify(newCache));
         })();
+
+
     } catch (e) {
         console.error(e);
     } finally {
@@ -102,6 +72,10 @@ const clearGenreFilter = () => {
     window.location.hash = '#/all';
 };
 
+const getFallbackDate = (m) => {
+    return m.real_updated_at || m.updated_at || m.created_at || m.release_date || m.last_updated || null;
+};
+
 const formatTimeShort = (dateStr) => {
     if (!dateStr) return '';
     const date = new Date(dateStr);
@@ -120,12 +94,13 @@ const formatTimeShort = (dateStr) => {
 </script>
 
 <template>
-  <div class="all-series-view animate">
-    <div class="page-header-row" style="display:flex; align-items:center; gap:1rem; margin-bottom:2rem;">
-      <h2 class="section-title">Browse All</h2>
-      <div v-if="genre" class="active-filter-badge" style="background:var(--accent); color:white; padding:0.4rem 1rem; border-radius:99px; font-weight:700; font-size:0.85rem; display:flex; align-items:center; gap:0.5rem;">
-        {{ genre }}
-        <span class="remove-filter" style="cursor:pointer; opacity:0.8;" @click="clearGenreFilter">✕</span>
+  <div class="all-series-view">
+    
+    <div class="page-header-row">
+      <h2 class="section-title">BROWSE ALL</h2>
+      <div v-if="genre" class="active-filter-badge comic-panel">
+        #{{ genre.toUpperCase() }}
+        <button class="remove-filter comic-button" @click="clearGenreFilter">✕</button>
       </div>
     </div>
 
@@ -135,8 +110,9 @@ const formatTimeShort = (dateStr) => {
     
     <div v-else class="manga-grid">
       <MangaCard
-        v-for="m in (mangaListWithDates.length > 0 ? mangaListWithDates : mangaList)"
+        v-for="(m, i) in mangaListWithDates"
         :key="m.manga_id"
+        :index="i"
         :title="m.title"
         :coverUrl="resolveImg(m)"
         :latestChapter="m.latest_chapter_number"
@@ -144,17 +120,98 @@ const formatTimeShort = (dateStr) => {
         :type="m.taxonomy?.Format?.[0]?.name"
         :href="`#/series/${m.manga_id}`"
         :showStatusBadges="true"
-        :status="m.real_updated_at ? formatTimeShort(m.real_updated_at) : null"
-        :isNew="m.real_updated_at ? (Date.now() - new Date(m.real_updated_at).getTime()) < 86400000 : false"
+        :status="getFallbackDate(m) ? formatTimeShort(getFallbackDate(m)) : null"
+        :isNew="getFallbackDate(m) ? (Date.now() - new Date(getFallbackDate(m)).getTime()) < 18000000 : false"
       />
     </div>
 
     <div class="pagination" v-if="!isLoading">
       <button v-for="p in totalPages" :key="p" 
-              class="page-btn" :class="{ 'page-btn-active': p === page }"
+              class="page-btn comic-button" :class="{ 'secondary': p !== page }"
               @click="setPage(p)">
         {{ p }}
       </button>
     </div>
   </div>
 </template>
+
+<style scoped>
+.all-series-view {
+    padding-bottom: 4rem;
+}
+
+.page-header-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 2rem;
+    margin-bottom: 3rem;
+    border-bottom: var(--border-w) solid var(--border);
+    padding-bottom: 1rem;
+}
+
+.section-title {
+    font-size: 3rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: -2px;
+    margin: 0;
+}
+
+.active-filter-badge {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    background: var(--yellow);
+    color: var(--text);
+    padding: 8px 16px;
+    font-weight: 900;
+    font-size: 1rem;
+}
+
+.remove-filter {
+    padding: 4px 8px;
+    font-size: 0.8rem;
+    background: var(--text);
+    color: var(--bg);
+}
+.remove-filter:hover {
+    background: var(--accent);
+}
+
+.pagination {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    margin-top: 4rem;
+}
+
+.page-btn {
+    padding: 8px 16px;
+    min-width: 48px;
+}
+
+.grid-skeleton {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: 2rem;
+}
+.skeleton-card {
+    aspect-ratio: 2/3;
+    background: var(--surface);
+    border: var(--border-w) solid var(--border);
+    animation: pulse 1.5s infinite alternate;
+}
+@keyframes pulse {
+    0% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+@media (max-width: 640px) {
+    .section-title { font-size: 2rem; }
+    .page-header-row { gap: 1rem; margin-bottom: 2rem; }
+    .page-btn { padding: 8px 12px; min-width: 40px; }
+}
+</style>

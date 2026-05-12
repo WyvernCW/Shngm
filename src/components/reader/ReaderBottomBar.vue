@@ -1,6 +1,6 @@
 <script setup>
-import { ref, computed } from 'vue';
 import { ChevronLeft, ChevronRight, List, Maximize } from 'lucide-vue-next';
+import { ref, computed } from 'vue';
 
 const props = defineProps({
     currentPage: Number,
@@ -32,49 +32,59 @@ const handleProgressClick = (e) => {
     const targetPage = Math.floor(percent * props.totalPages);
     emit('jump', targetPage);
 };
+
+const toggleFullscreen = () => {
+    const doc = document.documentElement;
+    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        if (doc.requestFullscreen) doc.requestFullscreen();
+        else if (doc.webkitRequestFullscreen) doc.webkitRequestFullscreen();
+        emit('hide-ui');
+    } else {
+        if (document.exitFullscreen) document.exitFullscreen();
+        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+    }
+};
 </script>
 
 <template>
   <div class="reader-bottom-bar reader-ui" :class="{ 'hidden': !isVisible, 'visible': isVisible, 'bottom': true }">
-    <div class="bottom-bar-content glass">
+    <div class="bottom-bar-content comic-panel">
       
-      <!-- Progress Track -->
+      <!-- Progress Track Brutalist -->
       <div class="progress-container" @click="handleProgressClick">
         <div class="progress-bar" :style="{ width: progress + '%' }"></div>
-        <div class="page-count">{{ currentPage }} / {{ totalPages }}</div>
+        <div class="page-count">PG {{ currentPage }} / {{ totalPages }}</div>
       </div>
 
       <div class="controls-row">
         <div class="ctrl-left">
-           <button class="nav-btn" :disabled="!hasPrev" @click="emit('navigate', 'prev')" :class="{ 'disabled': !hasPrev }">
-             <ChevronLeft :size="24" />
+           <button class="comic-button nav-btn" :disabled="!hasPrev" @click="emit('navigate', 'prev')" :class="{ 'disabled': !hasPrev }">
+             <ChevronLeft :size="24" strokeWidth="3" />
            </button>
-           <div class="chapter-info" @click="showChapterList = !showChapterList">
-             <span class="label">CHAPTER</span>
-             <span class="value">{{ currentChapterNum }} <List :size="14" /></span>
+           <div class="chapter-info comic-panel" @click="showChapterList = !showChapterList">
+             <span class="value">CH. {{ currentChapterNum }} <List :size="18" strokeWidth="2.5" /></span>
            </div>
-           <button class="nav-btn" :disabled="!hasNext" @click="emit('navigate', 'next')" :class="{ 'disabled': !hasNext }">
-             <ChevronRight :size="24" />
+           <button class="comic-button nav-btn" :disabled="!hasNext" @click="emit('navigate', 'next')" :class="{ 'disabled': !hasNext }">
+             <ChevronRight :size="24" strokeWidth="3" />
            </button>
         </div>
 
         <div class="ctrl-right">
-           <button class="icon-btn" @click="showChapterList = !showChapterList"><List :size="20" /></button>
-           <button class="icon-btn" @click="document.documentElement.requestFullscreen()"><Maximize :size="20" /></button>
+           <button class="comic-button secondary icon-btn" @click="toggleFullscreen"><Maximize :size="20" strokeWidth="2.5" /></button>
         </div>
       </div>
 
       <!-- Chapter Dropdown -->
       <transition name="pop">
-        <div v-if="showChapterList" class="chapter-dropdown glass">
-          <div class="dropdown-header">Jump to Chapter</div>
+        <div v-if="showChapterList" class="chapter-dropdown comic-panel">
+          <div class="dropdown-header">SELECT ISSUE</div>
           <div class="chapter-list-scroll">
             <div v-for="ch in sortedChapters" 
                  :key="ch.id" 
                  class="chapter-item"
                  :class="{ 'active': ch.chapter_number == currentChapterNum }"
                  @click="emit('select-chapter', ch); showChapterList = false;">
-              <span>Chapter {{ ch.chapter_number }}</span>
+              <span>ISSUE #{{ ch.chapter_number }}</span>
               <span class="ch-date" v-if="ch.release_date">{{ new Date(ch.release_date).toLocaleDateString() }}</span>
             </div>
           </div>
@@ -82,7 +92,6 @@ const handleProgressClick = (e) => {
       </transition>
     </div>
 
-    <!-- Backdrop for dropdown -->
     <div v-if="showChapterList" class="dropdown-overlay" @click="showChapterList = false"></div>
   </div>
 </template>
@@ -102,20 +111,19 @@ const handleProgressClick = (e) => {
   max-width: 800px;
   margin: 0 auto;
   pointer-events: all;
-  padding: 1rem;
-  border-radius: 20px;
-  box-shadow: 0 -10px 30px rgba(0,0,0,0.5);
+  padding: 1.5rem;
+  background: var(--surface);
+  position: relative;
 }
 
 .progress-container {
-  height: 24px;
-  background: rgba(255,255,255,0.05);
-  border-radius: 12px;
+  height: 28px;
+  background: var(--bg);
   position: relative;
   overflow: hidden;
   cursor: pointer;
-  margin-bottom: 1rem;
-  border: 1px solid var(--border);
+  margin-bottom: 1.5rem;
+  border: var(--border-w) solid var(--border);
 }
 
 .progress-bar {
@@ -124,18 +132,19 @@ const handleProgressClick = (e) => {
   background: var(--accent);
   width: 0%;
   transition: width 0.3s ease;
+  border-right: var(--border-w) solid var(--border);
 }
 
 .page-count {
   position: relative;
   width: 100%;
   text-align: center;
-  font-size: 0.7rem;
-  font-weight: 800;
+  font-size: 0.85rem;
+  font-weight: 900;
   line-height: 24px;
-  color: white;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+  color: var(--text);
   pointer-events: none;
+  mix-blend-mode: difference; /* Cool comic effect */
 }
 
 .controls-row {
@@ -144,49 +153,50 @@ const handleProgressClick = (e) => {
   align-items: center;
 }
 
-.ctrl-left { display: flex; align-items: center; gap: 1.5rem; }
-.chapter-info { text-align: center; cursor: pointer; padding: 0.2rem 1rem; border-radius: 12px; transition: background 0.2s; }
-.chapter-info:hover { background: rgba(255,255,255,0.05); }
-.chapter-info .label { display: block; font-size: 0.6rem; color: var(--muted); font-weight: 700; }
-.chapter-info .value { font-size: 1.1rem; font-weight: 900; display: flex; align-items: center; gap: 0.4rem; justify-content: center; }
+.ctrl-left { display: flex; align-items: stretch; gap: 1rem; }
 
-.nav-btn { background: none; border: none; color: white; cursor: pointer; }
-.nav-btn.disabled { opacity: 0.2; cursor: not-allowed; }
+.nav-btn { padding: 8px 12px; box-shadow: 3px 3px 0px var(--border); }
+.nav-btn.disabled { background: var(--bg); color: var(--text-secondary); cursor: not-allowed; box-shadow: none; transform: none !important; border-color: var(--text-secondary); }
+
+.chapter-info { 
+    display: flex; align-items: center; cursor: pointer; padding: 0 1.5rem; 
+    background: var(--yellow); box-shadow: 3px 3px 0 var(--border); transition: all 0.2s;
+}
+.chapter-info:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--border); }
+.chapter-info .value { font-size: 1.2rem; font-weight: 900; display: flex; align-items: center; gap: 0.8rem; justify-content: center; }
 
 .ctrl-right { display: flex; gap: 1rem; }
-.icon-btn { background: none; border: none; color: white; cursor: pointer; padding: 0.5rem; }
+.icon-btn { padding: 8px; box-shadow: 3px 3px 0px var(--border); }
 
 /* Dropdown */
 .chapter-dropdown {
   position: absolute;
-  bottom: calc(100% + 15px);
+  bottom: calc(100% + 20px);
   left: 0;
   right: 0;
   max-height: 400px;
-  border-radius: 20px;
   padding: 1.5rem;
   z-index: 10;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 -20px 50px rgba(0,0,0,0.6);
 }
 
-.dropdown-header { font-weight: 800; margin-bottom: 1rem; color: var(--accent); }
+.dropdown-header { font-weight: 900; font-size: 1.5rem; margin-bottom: 1rem; border-bottom: var(--border-w) solid var(--border); padding-bottom: 0.5rem; }
 .chapter-list-scroll { overflow-y: auto; flex: 1; margin-right: -10px; padding-right: 10px; }
-.chapter-item { padding: 0.8rem 1rem; border-radius: 10px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-weight: 600; font-size: 0.9rem; margin-bottom: 0.2rem; }
-.chapter-item:hover { background: rgba(255,255,255,0.05); }
+.chapter-item { padding: 1rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-weight: 700; font-size: 1rem; border-bottom: 2px solid var(--border); }
+.chapter-item:hover { background: var(--yellow); }
 .chapter-item.active { background: var(--accent); color: white; }
-.ch-date { font-size: 0.7rem; opacity: 0.6; }
+.ch-date { font-size: 0.8rem; font-weight: 900; }
 
-.dropdown-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 1000; }
+.dropdown-overlay { position: fixed; inset: 0; z-index: 1000; }
 
-.pop-enter-active, .pop-leave-active { transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
-.pop-enter-from { opacity: 0; transform: translateY(20px) scale(0.95); }
-.pop-leave-to { opacity: 0; transform: translateY(20px) scale(0.95); }
+.pop-enter-active, .pop-leave-active { transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.pop-enter-from, .pop-leave-to { opacity: 0; transform: translateY(20px); }
 
 @media (max-width: 600px) {
-  .bottom-bar-content { border-radius: 0; margin: 0 -1.5rem; max-width: 100vw; padding: 1rem 1.5rem; }
-  .chapter-dropdown { border-radius: 0; bottom: 100%; }
+  .bottom-bar-content { margin: 0 -1.5rem -1.5rem; max-width: 100vw; padding: 1.5rem 1rem; border-bottom: none; border-left: none; border-right: none; box-shadow: none; border-top: var(--border-w) solid var(--border); }
+  .chapter-info { padding: 0 1rem; }
+  .chapter-dropdown { border-radius: 0; bottom: 100%; border-left: none; border-right: none; }
 }
 </style>

@@ -13,15 +13,15 @@ const emit = defineEmits(['navigate']);
 <template>
   <div class="reader-side-buttons reader-ui" :class="{ 'hidden': !isVisible, 'visible': isVisible }">
     <button v-if="hasPrev"
-            class="side-btn prev glass" 
+            class="side-btn prev comic-panel" 
             @click.stop="emit('navigate', 'prev')">
-      <ChevronLeft :size="32" />
+      <ChevronLeft :size="40" strokeWidth="3" />
     </button>
     
     <button v-if="hasNext"
-            class="side-btn next glass" 
+            class="side-btn next comic-panel" 
             @click.stop="emit('navigate', 'next')">
-      <ChevronRight :size="32" />
+      <ChevronRight :size="40" strokeWidth="3" />
     </button>
   </div>
 </template>
@@ -40,27 +40,34 @@ const emit = defineEmits(['navigate']);
     transform: translateY(-50%);
     width: 60px;
     height: 120px;
-    background: rgba(139, 92, 246, 0.1);
-    border: 1px solid var(--border);
-    color: white;
+    background: var(--surface);
+    color: var(--text);
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     pointer-events: all;
-    transition: all 0.2s;
-    border-radius: 99px; /* Pill shape */
+    transition: all 0.1s;
+    box-shadow: 4px 4px 0 var(--border);
 }
 
 .side-btn:hover {
-    background: rgba(139, 92, 246, 0.4);
-    box-shadow: 0 0 20px var(--accent-glow);
+    background: var(--yellow);
+    transform: translateY(-50%) translate(-2px, -2px);
+    box-shadow: 6px 6px 0 var(--border);
 }
 
-.prev { left: 1rem; border-top-left-radius: 10px; border-bottom-left-radius: 10px; }
-.next { right: 1rem; border-top-right-radius: 10px; border-bottom-right-radius: 10px; }
+.side-btn:active {
+    transform: translateY(-50%) translate(2px, 2px);
+    box-shadow: 2px 2px 0 var(--border);
+}
+
+.prev { left: 0; border-left: none; }
+.next { right: 0; border-right: none; box-shadow: -4px 4px 0 var(--border); }
+.next:hover { transform: translateY(-50%) translate(2px, -2px); box-shadow: -6px 6px 0 var(--border); }
+.next:active { transform: translateY(-50%) translate(-2px, 2px); box-shadow: -2px 2px 0 var(--border); }
 
 @media (max-width: 800px) {
-    .side-btn { width: 44px; height: 80px; }
+    .side-btn { width: 40px; height: 80px; }
 }
 </style>
