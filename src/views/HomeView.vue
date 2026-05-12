@@ -276,7 +276,7 @@ const resolveImg = (m) => API.resolveImg(m);
 .hero-badge {
   display: inline-block;
   background: var(--border);
-  color: var(--bg);
+  color: white;
   font-weight: 900;
   padding: 6px 12px;
   font-size: 0.8rem;

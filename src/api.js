@@ -26,7 +26,7 @@ async function processQueue() {
         }
 
         try {
-            const response = await fetch(`${API_BASE}/chapter/${mangaId}/list?page=1&page_size=10&sort_by=chapter_number&sort_order=desc`);
+            const response = await fetch(`${API_BASE}/chapter/${mangaId}/list?page=1&page_size=500&sort_by=chapter_number&sort_order=desc`);
             if (response.status === 429) {
                 // Backoff and retry later
                 chapterListQueue.unshift({ mangaId, resolve, reject });
