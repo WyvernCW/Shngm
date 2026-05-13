@@ -7,6 +7,7 @@ export default async function handler(req, res) {
 
     const allowedDomains = [
         'manhwadesu.tech', 'cdn.manhwadesu.tech', 'img.manhwadesu.tech', 
+        'manhwaland.land', 'cdn.manhwaland.land', 'img.manhwaland.land',
         'images.shngm.id', 'assets.shngm.id', 'shinigami.id', 'cdn.shinigami.id',
         'shngm.id'
     ];

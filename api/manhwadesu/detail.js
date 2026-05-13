@@ -9,6 +9,7 @@ export default async function handler(req, res) {
         res.setHeader('Cache-Control', 's-maxage=600, stale-while-revalidate'); // 10min cache
         res.status(200).json({ ...data, source: 'manhwadesu' });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error('[MWD Detail API Error]:', error.message);
+        res.status(500).json({ error: error.message, source: 'manhwadesu', status: 'error' });
     }
 }
