@@ -24,21 +24,11 @@ const loadData = async () => {
         
         mangaListWithDates.value = data.map(m => ({ ...m, real_updated_at: null }));
 
-        // Background update for real dates
-        (async () => {
-            for (let i = 0; i < data.length; i++) {
-                const m = data[i];
-                try {
-                    const chRes = await API.getChapterList(m.manga_id);
-                    const chapters = chRes?.data || [];
-                    const latestCh = chapters[0];
-                    const realDate = latestCh?.release_date || latestCh?.created_at;
-                    if (realDate) {
-                        mangaListWithDates.value[i].real_updated_at = realDate;
-                    }
-                } catch (e) {}
-            }
-        })();
+        // --- ATOMIC PARALLEL FRESHNESS ---
+        API.getChapterDatesParallel(mangaListWithDates.value, (id, date) => {
+            const idx = mangaListWithDates.value.findIndex(m => m.manga_id === id);
+            if (idx !== -1) mangaListWithDates.value[idx].real_updated_at = date;
+        });
 
 
     } catch (e) {
@@ -47,8 +37,20 @@ const loadData = async () => {
         isLoading.value = false;
     }
 };
-
 watch([page, genre], loadData, { immediate: true });
+
+const setPage = (p) => {
+    window.location.hash = window.location.hash.replace(/\/\d+($|\?)/, `/${p}$1`);
+    if (!window.location.hash.includes(`/${p}`)) {
+        const parts = window.location.hash.split('?');
+        window.location.hash = parts[0] + `/${p}` + (parts[1] ? '?' + parts[1] : '');
+    }
+};
+
+const clearGenreFilter = () => {
+    const parts = window.location.hash.split('?');
+    window.location.hash = parts[0];
+};
 
 const resolveImg = (m) => API.resolveImg(m);
 

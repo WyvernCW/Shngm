@@ -5,19 +5,54 @@
 
 const API_BASE = '/api/shinigami-proxy?path=';
 
+// --- PERSISTENT CACHE ENGINE (IndexedDB) ---
+const DB_NAME = 'VRTWEL_CACHE';
+const STORE_NAME = 'api_responses';
+const CACHE_VERSION = 1;
+
+const openDB = () => new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, CACHE_VERSION);
+    request.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME);
+    };
+    request.onsuccess = (e) => resolve(e.target.result);
+    request.onerror = (e) => reject(e.target.error);
+});
+
+const dbGet = async (key) => {
+    try {
+        const db = await openDB();
+        return new Promise((resolve) => {
+            const transaction = db.transaction(STORE_NAME, 'readonly');
+            const store = transaction.objectStore(STORE_NAME);
+            const request = store.get(key);
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => resolve(null);
+        });
+    } catch (e) { return null; }
+};
+
+const dbSet = async (key, val) => {
+    try {
+        const db = await openDB();
+        const transaction = db.transaction(STORE_NAME, 'readwrite');
+        const store = transaction.objectStore(STORE_NAME);
+        store.put(val, key);
+    } catch (e) {}
+};
+
+// --- API ORCHESTRATOR ---
 const queue = [];
 let activeRequests = 0;
-const MAX_CONCURRENT = 3;
-const cache = new Map();
-const CACHE_TTL = 300000;
+const MAX_CONCURRENT = 5; // Increased for speed
 
 const processQueue = async () => {
     if (activeRequests >= MAX_CONCURRENT || queue.length === 0) return;
     activeRequests++;
-    const { task, resolve, reject, cacheKey } = queue.shift();
+    const { task, resolve, reject } = queue.shift();
     try {
         const result = await task();
-        if (cacheKey && result) cache.set(cacheKey, { data: result, timestamp: Date.now() });
         resolve(result);
     } catch (e) {
         reject(e);
@@ -27,39 +62,82 @@ const processQueue = async () => {
     }
 };
 
-const enqueue = (task, cacheKey) => new Promise((resolve, reject) => {
-    if (cacheKey && cache.has(cacheKey)) {
-        const entry = cache.get(cacheKey);
-        if (Date.now() - entry.timestamp < CACHE_TTL) return resolve(entry.data);
-    }
-    queue.push({ task, resolve, reject, cacheKey });
+const enqueue = (task) => new Promise((resolve, reject) => {
+    queue.push({ task, resolve, reject });
     processQueue();
 });
 
-async function fetchWithRetry(url, options = {}, retries = 3, backoff = 1000) {
-    const cacheKey = url + JSON.stringify(options);
-    return enqueue(async () => {
-        for (let i = 0; i < retries; i++) {
-            try {
-                const response = await fetch(url, options);
-                
-                if (response.status === 429) {
-                    const wait = backoff * Math.pow(2, i);
-                    console.warn(`[API] 429 Rate Limited. Retry ${i+1}/${retries} in ${wait}ms...`);
-                    await new Promise(r => setTimeout(r, wait));
-                    continue;
-                }
+/**
+ * Enhanced Fetch with Persistent SWR Caching
+ * - Instant cache return (24h TTL)
+ * - Background revalidation (1h Stale limit)
+ */
+async function fetchWithRetry(url, options = {}, retries = 2, backoff = 1000) {
+    const cacheKey = `vrtwel_cache_${url}_${JSON.stringify(options)}`;
+    
+    // 1. Check Persistent Cache
+    const cached = await dbGet(cacheKey);
+    const now = Date.now();
+    const STALE_LIMIT = 3600000; // 1 Hour (Background update if older)
+    const MAX_AGE = 86400000; // 24 Hours (Full expire)
 
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                return await response.json();
-            } catch (err) {
-                if (i === retries - 1) throw err;
-                const wait = backoff * Math.pow(2, i);
-                console.warn(`[API] Network Error (${err.message}). Retry ${i+1}/${retries} in ${wait}ms...`);
-                await new Promise(r => setTimeout(r, wait));
+    if (cached) {
+        const age = now - cached.timestamp;
+        
+        // If not expired (24h), return immediately
+        if (age < MAX_AGE) {
+            // If stale (> 1h), trigger background refresh
+            if (age > STALE_LIMIT) {
+                console.log(`[SWR] Stale Cache for ${url}. Background refreshing...`);
+                triggerBackgroundFetch(url, options, cacheKey);
             }
+            return cached.data;
         }
-    }, cacheKey);
+    }
+
+    // 2. Network Fetch if no cache or expired
+    return enqueue(async () => {
+        return await performNetworkFetch(url, options, retries, backoff, cacheKey);
+    });
+}
+
+async function performNetworkFetch(url, options, retries, backoff, cacheKey) {
+    for (let i = 0; i < retries; i++) {
+        try {
+            const response = await fetch(url, {
+                ...options,
+                signal: AbortSignal.timeout(10000) 
+            });
+            
+            if (response.status === 429) {
+                const wait = backoff * Math.pow(2, i);
+                await new Promise(r => setTimeout(r, wait));
+                continue;
+            }
+
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.json();
+            
+            // Persist to IndexedDB
+            await dbSet(cacheKey, { data, timestamp: Date.now() });
+            return data;
+        } catch (err) {
+            if (i === retries - 1) throw err;
+            await new Promise(r => setTimeout(r, backoff * Math.pow(2, i)));
+        }
+    }
+}
+
+// Quietly update cache in background
+async function triggerBackgroundFetch(url, options, cacheKey) {
+    try {
+        const response = await fetch(url, { ...options, signal: AbortSignal.timeout(15000) });
+        if (response.ok) {
+            const data = await response.json();
+            await dbSet(cacheKey, { data, timestamp: Date.now() });
+            console.log(`[SWR] Cache Updated for ${url}`);
+        }
+    } catch (e) {}
 }
 
 export const API = {
@@ -164,43 +242,75 @@ export const API = {
         }
     },
 
+    // --- HIGH SPEED FRESHNESS ENGINE ---
+    async getChapterDatesParallel(mangaList, callback) {
+        const CONCURRENCY = 5;
+        const tasks = [...mangaList];
+        
+        const worker = async () => {
+            while (tasks.length > 0) {
+                const m = tasks.shift();
+                if (!m?.manga_id) continue;
+                
+                // 1. Check persistent date store
+                const cacheKey = `date_${m.manga_id}`;
+                const cached = await dbGet(cacheKey);
+                if (cached && (Date.now() - cached.timestamp < 3600000)) { // 1h date cache
+                    callback(m.manga_id, cached.date);
+                    continue;
+                }
+
+                try {
+                    const chRes = await this.getChapterList(m.manga_id);
+                    const chapters = chRes?.data || [];
+                    const latestCh = chapters[0];
+                    const realDate = latestCh?.release_date || latestCh?.created_at;
+                    if (realDate) {
+                        await dbSet(cacheKey, { date: realDate, timestamp: Date.now() });
+                        callback(m.manga_id, realDate);
+                    }
+                } catch (e) {}
+            }
+        };
+
+        // Start multiple workers
+        await Promise.all(Array(CONCURRENCY).fill(0).map(() => worker()));
+    },
+
+    // --- IMAGE PIPELINE OPTIMIZATION ---
+    prefetchImages(urls) {
+        if (!urls || !Array.isArray(urls)) return;
+        urls.forEach(url => {
+            const img = new Image();
+            img.src = url;
+        });
+    },
+
     resolveImg(m) {
         if (!m) return '/assets/covers/standard.svg';
         let url = '/assets/covers/standard.svg';
         
-        // Manhwadesu source
         if (m.source === 'manhwadesu' || String(m.manga_id).startsWith('mwd-')) {
             url = m.cover_url || m.thumbnail || m.coverImage || url;
         } else {
-            // Shinigami / Shngm source
-            const CDN = 'https://images.shngm.id/'; // Updated CDN
+            const CDN = 'https://assets.shngm.id/'; // Updated to active assets subdomain
             const mid = m.manga_id || m.id || m.id_manga;
-            
-            const cands = [
-                m.cover_portrait_url, m.cover_url, m.cover, 
-                m.thumbnail, m.coverImage, m.poster_url, m.image_url
-            ];
-
+            const cands = [m.cover_portrait_url, m.cover_url, m.cover, m.thumbnail, m.coverImage, m.poster_url, m.image_url];
             for (const c of cands) {
                 if (c && typeof c === 'string') {
-                    if (c.startsWith('http')) {
-                        url = c;
-                        break;
+                    if (c.startsWith('http')) { 
+                        url = c.replace('images.shngm.id', 'assets.shngm.id'); // Fix stale domains
+                        break; 
                     }
-                    if (c.startsWith('thumbnail/') || c.startsWith('manga/')) {
-                        url = CDN + c;
-                        break;
-                    }
+                    if (c.startsWith('thumbnail/') || c.startsWith('manga/')) { url = CDN + c; break; }
                 }
             }
-
-            // UUID fallback - try manga path
+            // UUID fallback - try active thumbnail path
             if ((url === '/assets/covers/standard.svg' || url.includes('placeholder')) && mid) {
-                url = `${CDN}manga/image/${mid}.jpg`;
+                url = `${CDN}thumbnail/image/${mid}.jpg`;
             }
         }
 
-        // Apply proxy to all external URLs
         if (url && url.startsWith('http')) {
             return `/api/image-proxy?url=${encodeURIComponent(url)}`;
         }

@@ -54,25 +54,14 @@ const loadData = async () => {
         trendingManga.value = trending.status === 'fulfilled' ? trending.value?.data || [] : [];
         mwdManga.value = mwd.status === 'fulfilled' ? mwd.value?.data || [] : [];
 
-        // Background update for real dates on all sections
-        (async () => {
-            const allLists = [latestManga.value, trendingManga.value, mwdManga.value];
-            for (const list of allLists) {
-                for (let i = 0; i < list.length; i++) {
-                    const m = list[i];
-                    if (!m?.manga_id) continue;
-                    try {
-                        const chRes = await API.getChapterList(m.manga_id);
-                        const chapters = chRes?.data || [];
-                        const latestCh = chapters[0];
-                        const realDate = latestCh?.release_date || latestCh?.created_at;
-                        if (realDate) {
-                            list[i].real_updated_at = realDate;
-                        }
-                    } catch (e) {}
-                }
-            }
-        })();
+        // --- ATOMIC PARALLEL FRESHNESS ---
+        const allManga = [...latestManga.value, ...trendingManga.value, ...mwdManga.value];
+        API.getChapterDatesParallel(allManga, (id, date) => {
+            const update = (m) => { if (m.manga_id === id) m.real_updated_at = date; };
+            latestManga.value.forEach(update);
+            trendingManga.value.forEach(update);
+            mwdManga.value.forEach(update);
+        });
 
 
 

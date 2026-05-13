@@ -6,6 +6,7 @@ export default async function handler(req, res) {
     
     try {
         const data = await MWDScraper.search(q);
+        res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=3600');
         res.status(200).json({ data, source: 'manhwadesu' });
     } catch (error) {
         console.error('[MWD Search API Error]:', error.message);
