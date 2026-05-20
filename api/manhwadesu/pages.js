@@ -10,6 +10,6 @@ export default async function handler(req, res) {
         res.status(200).json({ data, source: 'manhwadesu' });
     } catch (error) {
         console.error('[MWD Pages API Error]:', error.message);
-        res.status(500).json({ error: error.message, source: 'manhwadesu', status: 'error' });
+        res.status(200).json({ data: [], error: error.message, source: 'manhwadesu', status: 'error' });
     }
 }

@@ -10,6 +10,6 @@ export default async function handler(req, res) {
         res.status(200).json({ ...data, source: 'cosmicscans' });
     } catch (error) {
         console.error('[CosmicScans Detail API Error]:', error.message);
-        res.status(500).json({ error: error.message, source: 'cosmicscans', status: 'error' });
+        res.status(200).json({ data: null, error: error.message, source: 'cosmicscans', status: 'error' });
     }
 }
