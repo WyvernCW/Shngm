@@ -44,21 +44,11 @@ const handleSearch = async () => {
         const data = res?.data || [];
         resultsWithDates.value = data.map(m => ({ ...m, real_updated_at: null }));
 
-        // Background update for real dates
-        (async () => {
-            for (let i = 0; i < data.length; i++) {
-                const m = data[i];
-                try {
-                    const chRes = await API.getChapterList(m.manga_id);
-                    const chapters = chRes?.data || [];
-                    const latestCh = chapters[0];
-                    const realDate = latestCh?.release_date || latestCh?.created_at;
-                    if (realDate) {
-                        resultsWithDates.value[i].real_updated_at = realDate;
-                    }
-                } catch (e) {}
-            }
-        })();
+        // Background: parallel freshness via cached engine
+        API.getChapterDatesParallel(resultsWithDates.value, (id, date) => {
+            const idx = resultsWithDates.value.findIndex(m => m.manga_id === id);
+            if (idx !== -1) resultsWithDates.value[idx].real_updated_at = date;
+        });
 
 
         const newHash = `#/search/${encodeURIComponent(query.value)}`;

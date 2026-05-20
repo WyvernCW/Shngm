@@ -14,21 +14,14 @@ const loadLibrary = async () => {
             items.value = JSON.parse(saved);
             itemsWithRealDates.value = items.value.map(i => ({ ...i, real_updated_at: null }));
 
-            // Background update for real dates
-            (async () => {
-                for (let i = 0; i < items.value.length; i++) {
-                    const item = items.value[i];
-                    try {
-                        const chRes = await API.getChapterList(item.mangaId);
-                        const chapters = chRes?.data || [];
-                        const latestCh = chapters[0];
-                        const realDate = latestCh?.release_date || latestCh?.created_at;
-                        if (realDate) {
-                            itemsWithRealDates.value[i].real_updated_at = realDate;
-                        }
-                    } catch (e) {}
+            // Background: parallel freshness via cached engine (map mangaId → manga_id)
+            API.getChapterDatesParallel(
+                itemsWithRealDates.value.map(i => ({ ...i, manga_id: i.mangaId })),
+                (id, date) => {
+                    const idx = itemsWithRealDates.value.findIndex(m => m.mangaId === id);
+                    if (idx !== -1) itemsWithRealDates.value[idx].real_updated_at = date;
                 }
-            })();
+            );
 
         } catch (err) {
             console.error('[Library] Failed to parse library:', err);
@@ -116,7 +109,7 @@ const calculateProgress = (item) => {
 };
 
 const getFallbackDate = (m) => {
-    return m.real_updated_at || m.timestamp || null;
+    return m.real_updated_at || m.updated_at || m.timestamp || null;
 };
 
 const selectedManga = ref(null);

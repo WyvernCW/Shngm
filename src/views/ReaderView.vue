@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
-import { API } from '../api';
+import { API, PRIORITY } from '../api';
 import { useChapterNavigation } from '../composables/useChapterNavigation';
 import { useDoubleTap } from '../composables/useDoubleTap';
 import { useSwipeNavigation } from '../composables/useSwipeNavigation';
@@ -65,22 +65,6 @@ useSwipeNavigation({
 });
 
 
-const MATERIAL_PROFILES = {
-    default: { inkSpeed: '1.2s', filter: 'none', breakoutMult: 1.0 },
-    Horror: { inkSpeed: '3s', filter: 'grayscale(1) contrast(1.5) brightness(0.8)', breakoutMult: 1.5 },
-    Action: { inkSpeed: '0.8s', filter: 'saturate(1.5) contrast(1.2)', breakoutMult: 1.2 },
-    Comedy: { inkSpeed: '0.5s', filter: 'sepia(0.2) brightness(1.1)', breakoutMult: 0.8 },
-    Romance: { inkSpeed: '2s', filter: 'hue-rotate(340deg) saturate(1.2)', breakoutMult: 0.7 }
-};
-
-const currentProfile = computed(() => {
-    const genres = seriesDetail.value?.taxonomy?.Genre || [];
-    for (const g of genres) {
-        if (MATERIAL_PROFILES[g.name]) return MATERIAL_PROFILES[g.name];
-    }
-    return MATERIAL_PROFILES.default;
-});
-
 const loadChapter = async () => {
     isLoading.value = true;
     libraryUpdated.value = false;
@@ -108,8 +92,10 @@ const loadChapter = async () => {
                     
                     allChapters.value = cRes?.data || cRes?.data?.data || [];
                     updateLibrary();
+                    triggerMangaFullSync(sId, allChapters.value);
                 } else {
                     updateLibrary();
+                    triggerMangaFullSync(sId, allChapters.value);
                 }
             }
         }
@@ -117,7 +103,21 @@ const loadChapter = async () => {
         console.error(e);
     } finally {
         isLoading.value = false;
-        window.scrollTo(0, 0);
+        // Restore scroll position after a minor tick to let Vue mount the images
+        setTimeout(() => {
+            try {
+                const savedPositions = JSON.parse(localStorage.getItem('vrtwel_positions') || '{}');
+                const savedPage = savedPositions[chapterId.value];
+                if (savedPage && savedPage > 1) {
+                    console.log(`[Scroll Restoration] Restoring scroll position to page ${savedPage}`);
+                    jumpToPage(savedPage - 1);
+                } else {
+                    window.scrollTo(0, 0);
+                }
+            } catch (err) {
+                window.scrollTo(0, 0);
+            }
+        }, 300);
     }
 };
 
@@ -149,7 +149,7 @@ const updateLibrary = () => {
         const historyItem = {
             mangaId: seriesDetail.value.manga_id,
             mangaTitle: seriesDetail.value.title || seriesDetail.value.name || 'Unknown',
-            coverUrl: getCoverUrl(seriesDetail.value),
+            coverUrl: API.resolveImg(seriesDetail.value),
             chapterId: chapterId.value,
             chapterNumber: chapterNumber.value || '??',
             totalChapters: allChapters.value?.length || 0,
@@ -172,45 +172,13 @@ const images = computed(() => {
     const rawData = ch.data || chapterData.value.pages || chapterData.value.images || [];
 
     return rawData.map(img => {
-        const fullUrl = img.startsWith('http') ? img : `${base}${path}${img}`;
-        // Wrap shinigami images in proxy
-        if (fullUrl.includes('shngm.id') || fullUrl.includes('shinigami.id') || fullUrl.includes('assets.shngm.id')) {
-            return `/api/image-proxy?url=${encodeURIComponent(fullUrl)}`;
+        if (!img || typeof img !== 'string') return '';
+        if (img.startsWith('/api/') || img.startsWith('data:')) {
+            return img;
         }
-        return fullUrl;
+        const fullUrl = img.startsWith('http') ? img : `${base}${path}${img}`;
+        return `/api/image-proxy?url=${encodeURIComponent(fullUrl)}`;
     });
-});
-
-// SHARED HISTORY: Simulated Ghosts of other readers
-const sharedGhosts = computed(() => {
-    if (!chapterId.value || !images.value.length) return {};
-    const ghosts = {};
-    
-    // Seeded random for deterministic marks
-    const seed = (str) => {
-        let h = 0;
-        for(let i=0; i<str.length; i++) h = Math.imul(31, h) + str.charCodeAt(i) | 0;
-        return h;
-    };
-
-    const s = seed(chapterId.value);
-    
-    images.value.forEach((_, i) => {
-        const key = `${chapterId.value}_${i}`;
-        const pageSeed = s + i;
-        const markCount = (Math.abs(pageSeed) % 4) + 1; // 1-4 ghosts per page
-        
-        ghosts[key] = Array.from({ length: markCount }).map((_, j) => {
-            const mSeed = pageSeed + j * 100;
-            return {
-                x: (Math.abs(Math.sin(mSeed)) * 80) + 10, // 10-90%
-                y: (Math.abs(Math.cos(mSeed)) * 80) + 10,
-                opacity: (Math.abs(Math.sin(mSeed * 2)) * 0.15) + 0.05 // Very faint
-            };
-        });
-    });
-    
-    return ghosts;
 });
 
 const handleScroll = () => {
@@ -220,7 +188,15 @@ const handleScroll = () => {
         const rect = img.getBoundingClientRect();
         if (rect.top < window.innerHeight / 2) current = i + 1;
     });
-    currentPage.value = current;
+    
+    if (currentPage.value !== current) {
+        currentPage.value = current;
+        try {
+            const savedPositions = JSON.parse(localStorage.getItem('vrtwel_positions') || '{}');
+            savedPositions[chapterId.value] = current;
+            localStorage.setItem('vrtwel_positions', JSON.stringify(savedPositions));
+        } catch (e) {}
+    }
 
     const scrollPos = window.innerHeight + window.scrollY;
     const threshold = document.documentElement.scrollHeight - 200;
@@ -233,12 +209,9 @@ const handleScroll = () => {
 const jumpToPage = (pageIndex) => {
     const imgs = document.querySelectorAll('.reader-img');
     if (imgs[pageIndex]) {
-        imgs[pageIndex].scrollIntoView({ behavior: 'smooth' });
+        imgs[pageIndex].scrollIntoView({ behavior: 'auto' });
     }
 };
-
-onMounted(() => { window.addEventListener('scroll', handleScroll, { passive: true }); });
-onUnmounted(() => { window.removeEventListener('scroll', handleScroll); });
 
 const updateSettings = (newVal) => {
     settings.value = { ...newVal };
@@ -247,65 +220,6 @@ const updateSettings = (newVal) => {
     localStorage.setItem('vrtwel_fit', newVal.fit);
     localStorage.setItem('vrtwel_gap', newVal.gap);
     localStorage.setItem('vrtwel_autoadvance', newVal.autoAdvance);
-};
-
-// V-BLEED DIRECTIVE: Ink-Bleed Transition logic
-const vBleed = {
-    mounted(el) {
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    // Slight delay for smoother ink feel
-                    setTimeout(() => {
-                        el.classList.add('bleeding');
-                    }, 100);
-                    observer.unobserve(el);
-                }
-            });
-        }, { threshold: 0.05 });
-        observer.observe(el);
-        
-        // Immediate check
-        requestAnimationFrame(() => {
-            if (el.getBoundingClientRect().top < window.innerHeight) {
-                el.classList.add('bleeding');
-            }
-        });
-    }
-};
-
-// BREAKOUT MODE: 3D Scroll Listener
-const handleBreakout = () => {
-    const panels = document.querySelectorAll('.breakout-panel');
-    const centerY = window.innerHeight / 2;
-    let maxZ = 0;
-    
-    panels.forEach(panel => {
-        const rect = panel.getBoundingClientRect();
-        const distFromCenter = rect.top + rect.height / 2 - centerY;
-        const normalizedDist = distFromCenter / centerY;
-        
-        if (Math.abs(normalizedDist) < 1.5) {
-            const z = Math.max(0, (1 - Math.abs(normalizedDist)) * 80); // Reduced Z to avoid clipping
-            const rotX = normalizedDist * 8;
-            const rotY = -normalizedDist * 4;
-            panel.style.transform = `translateZ(${z}px) rotateX(${rotX}deg) rotateY(${rotY}deg) scale(${1 + z/2000})`;
-            panel.style.zIndex = Math.round(z);
-            if (z > maxZ) maxZ = z;
-        } else {
-            panel.style.transform = 'none';
-        }
-    });
-};
-
-// Ribbon Logic
-const scrollPercent = ref(0);
-const handleScrollSync = () => {
-    const winScroll = document.body.scrollTop || document.documentElement.scrollTop;
-    const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
-    scrollPercent.value = height > 0 ? (winScroll / height) * 100 : 0;
-    handleScroll();
-    handleBreakout();
 };
 
 const annotations = ref(JSON.parse(localStorage.getItem('vrtwel_annotations') || '{}'));
@@ -322,11 +236,216 @@ const addAnnotation = (e, index) => {
     localStorage.setItem('vrtwel_annotations', JSON.stringify(annotations.value));
 };
 
+const seededRandom = (seed) => {
+    let h = 0;
+    for (let i = 0; i < seed.length; i++) {
+        h = Math.imul(31, h) + seed.charCodeAt(i) | 0;
+    }
+    return () => {
+        h = Math.imul(h ^ h >>> 16, 2246822507) | 0;
+        h = Math.imul(h ^ h >>> 13, 3266489909) | 0;
+        return ((h ^ h >>> 16) >>> 0) / 4294967296;
+    };
+};
+
+const getGhostMarks = (index) => {
+    const seedStr = `${chapterId.value}_page_${index}`;
+    const rand = seededRandom(seedStr);
+    
+    // Deterministic number of weathered marks (1 to 4)
+    const count = Math.floor(rand() * 4) + 1;
+    const marks = [];
+    for (let m = 0; m < count; m++) {
+        // Position within comfortable reading boundaries (15% to 85%)
+        const x = 15 + rand() * 70;
+        const y = 15 + rand() * 70;
+        // Varied radii (1.5px to 5px) to simulate genuine dynamic ink wear
+        const r = 1.5 + rand() * 3.5;
+        // Super faint opacity to act as elegant "ghost marks"
+        const opacity = 0.05 + rand() * 0.15;
+        
+        marks.push({
+            cx: `${x}%`,
+            cy: `${y}%`,
+            r,
+            opacity,
+            key: `ghost_${index}_${m}`
+        });
+    }
+    return marks;
+};
+
+// --- NEXT CHAPTER SEQUENTIAL PREFETCH ENGINE ---
+let activePrefetchSession = 0;
+
+const triggerNextChapterPrefetch = async (nextId) => {
+    activePrefetchSession++;
+    const session = activePrefetchSession;
+    
+    // Add an initial cooldown delay to let the active chapter pages load completely first
+    await new Promise(r => setTimeout(r, 1500));
+    if (session !== activePrefetchSession) return;
+
+    try {
+        console.log(`[Prefetch] Fetching next chapter detail in background for ID: ${nextId}`);
+        const res = await API.getChapter(nextId, PRIORITY.LOW);
+        if (session !== activePrefetchSession) return;
+
+        if (res?.data) {
+            const ch = res.data.chapter || res.data.data?.chapter;
+            if (!ch) return;
+
+            const base = res.data.base_url || res.data.base_image_url || '';
+            const path = ch.path || '';
+            const rawData = ch.data || res.data.pages || res.data.images || [];
+
+            const urls = rawData.map(img => {
+                if (!img || typeof img !== 'string') return '';
+                if (img.startsWith('/api/') || img.startsWith('data:')) {
+                    return img;
+                }
+                const fullUrl = img.startsWith('http') ? img : `${base}${path}${img}`;
+                return `/api/image-proxy?url=${encodeURIComponent(fullUrl)}`;
+            });
+
+            console.log(`[Prefetch] Sequential prefetch started for ${urls.length} images of chapter ${nextId}`);
+            
+            for (const url of urls) {
+                if (session !== activePrefetchSession) {
+                    console.log('[Prefetch] Prefetch session superseded. Aborting.');
+                    break;
+                }
+
+                await new Promise((resolve) => {
+                    const img = new Image();
+                    img.onload = () => resolve();
+                    img.onerror = () => resolve();
+                    img.src = url;
+                });
+
+                // Small resting delay to completely keep the CPU and network pipes responsive
+                await new Promise(r => setTimeout(r, 150));
+            }
+
+            if (session === activePrefetchSession) {
+                console.log(`[Prefetch] Finished prefetching all images for chapter ${nextId}`);
+            }
+        }
+    } catch (err) {
+        console.error('[Prefetch] Background prefetch failed:', err);
+    }
+};
+
+// --- FULL MANGA CHAPTER BACKGROUND SYNC ENGINE ---
+let activeMangaSyncSession = 0;
+
+const triggerMangaFullSync = async (mangaId, chaptersList) => {
+    if (!mangaId || !chaptersList || chaptersList.length === 0) return;
+    
+    activeMangaSyncSession++;
+    const currentSession = activeMangaSyncSession;
+
+    // Cooldown of 5 seconds to wait for initial page load and immediate next-chapter prefetch to complete
+    await new Promise(r => setTimeout(r, 5000));
+    if (currentSession !== activeMangaSyncSession) return;
+
+    console.log(`[MangaSync] Initiating silent full-manga sync for series: ${mangaId}. Total chapters: ${chaptersList.length}`);
+
+    // Map chapters to get clean ID list.
+    // Let's sort them so chapters near the current chapter are prioritized!
+    const currentChIndex = chaptersList.findIndex(ch => {
+        const id = ch.chapter_id || ch.id;
+        return String(id) === String(chapterId.value);
+    });
+
+    const sortedChapters = [...chaptersList];
+    if (currentChIndex !== -1) {
+        // Sort based on distance from current chapter index
+        sortedChapters.sort((a, b) => {
+            const idxA = chaptersList.indexOf(a);
+            const idxB = chaptersList.indexOf(b);
+            const distA = Math.abs(idxA - currentChIndex);
+            const distB = Math.abs(idxB - currentChIndex);
+            return distA - distB;
+        });
+    }
+
+    for (const chapter of sortedChapters) {
+        if (currentSession !== activeMangaSyncSession) {
+            console.log('[MangaSync] Manga sync session superseded. Aborting full series sync.');
+            return;
+        }
+
+        const chId = chapter.chapter_id || chapter.id;
+        if (!chId) continue;
+
+        try {
+            console.log(`[MangaSync] Syncing chapter details for ID: ${chId}`);
+            const res = await API.getChapter(chId, PRIORITY.LOW);
+            if (currentSession !== activeMangaSyncSession) return;
+
+            if (res?.data) {
+                const ch = res.data.chapter || res.data.data?.chapter;
+                if (!ch) continue;
+
+                const base = res.data.base_url || res.data.base_image_url || '';
+                const path = ch.path || '';
+                const rawData = ch.data || res.data.pages || res.data.images || [];
+
+                const urls = rawData.map(img => {
+                    if (!img || typeof img !== 'string') return '';
+                    if (img.startsWith('/api/') || img.startsWith('data:')) {
+                        return img;
+                    }
+                    const fullUrl = img.startsWith('http') ? img : `${base}${path}${img}`;
+                    return `/api/image-proxy?url=${encodeURIComponent(fullUrl)}`;
+                });
+
+                console.log(`[MangaSync] Sequential prefetch started for ${urls.length} images of synced chapter ${chId}`);
+                
+                for (const url of urls) {
+                    if (currentSession !== activeMangaSyncSession) {
+                        break;
+                    }
+
+                    await new Promise((resolve) => {
+                        const img = new Image();
+                        img.onload = () => resolve();
+                        img.onerror = () => resolve();
+                        img.src = url;
+                    });
+
+                    // Generous 250ms cooling delay per image to keep system completely responsive and lag-free
+                    await new Promise(r => setTimeout(r, 250));
+                }
+            }
+        } catch (err) {
+            console.error(`[MangaSync] Sync failed for chapter ${chId}:`, err);
+        }
+
+        // Generous 1000ms delay between chapters to avoid overloading network/disk IO
+        await new Promise(r => setTimeout(r, 1000));
+    }
+
+    if (currentSession === activeMangaSyncSession) {
+        console.log(`[MangaSync] Completed full sync archive for series: ${mangaId}`);
+    }
+};
+
+watch(nextChapter, (newNext) => {
+    if (newNext) {
+        const nextId = newNext.chapter_id || newNext.id;
+        if (nextId) {
+            triggerNextChapterPrefetch(nextId);
+        }
+    }
+}, { immediate: true });
+
 onMounted(() => {
-    window.addEventListener('scroll', handleScrollSync, { passive: true });
+    window.addEventListener('scroll', handleScroll, { passive: true });
 });
 onUnmounted(() => {
-    window.removeEventListener('scroll', handleScrollSync);
+    window.removeEventListener('scroll', handleScroll);
 });
 </script>
 
@@ -358,14 +477,8 @@ onUnmounted(() => {
            ref="readerContainer"
            :class="[settings.readingMode, settings.fit]"
            :style="{ 
-               gap: settings.gap + 'px',
-               '--bleed-speed': (currentProfile?.inkSpeed) || '1.2s',
-               '--material-filter': (currentProfile?.filter) || 'none',
-               '--paper-opacity': ((currentProfile?.breakoutMult || 1.0) * 0.05 + 0.05)
+               gap: settings.gap + 'px'
            }">
-        
-        <!-- Paper Texture Overlay -->
-        <div class="reader-paper-grain"></div>
 
         <div v-if="isLoading" class="reader-state-msg">
             <div class="loading-spinner"></div>
@@ -377,31 +490,31 @@ onUnmounted(() => {
             <button @click="loadChapter" class="retry-btn">RETRY EXTRACTION</button>
         </div>
 
-        <div v-else v-for="(src, i) in images" :key="src" class="img-wrap" v-bleed>
+        <div v-else v-for="(src, i) in images" :key="src" class="img-wrap">
           <div class="panel-container" @click="e => addAnnotation(e, i)">
-            <img :src="src" 
-                 class="reader-img comic-panel breakout-panel" 
+            <img :src="src"
+                 class="reader-img"
                  loading="lazy"
                  :style="{ marginBottom: settings.readingMode === 'long-strip' ? settings.gap + 'px' : 0 }"
                  @error="e => e.target.style.display = 'none'">
-            
-            <!-- Annotations & Ghosts Layer -->
+
+            <!-- Annotations Layer -->
             <svg class="annotations-overlay">
-                <!-- Shared Ghosts (Others) -->
-                <circle v-for="(ghost, gi) in sharedGhosts[`${chapterId}_${i}`]" 
-                        :key="'ghost_'+gi"
-                        :cx="ghost.x + '%'" 
-                        :cy="ghost.y + '%'" 
-                        r="8" 
-                        class="ghost-mark"
-                        :style="{ opacity: ghost.opacity }" />
+                <!-- Historical Reader Ghost Marks (Weathering Accumulator) -->
+                <circle v-for="ghost in getGhostMarks(i)"
+                        :key="ghost.key"
+                        :cx="ghost.cx"
+                        :cy="ghost.cy"
+                        :r="ghost.r"
+                        :style="{ opacity: ghost.opacity }"
+                        class="ghost-mark" />
 
                 <!-- User Marks -->
-                <circle v-for="mark in annotations[`${chapterId}_${i}`]" 
-                        :key="mark.timestamp" 
-                        :cx="mark.x + '%'" 
-                        :cy="mark.y + '%'" 
-                        r="5" 
+                <circle v-for="mark in annotations[`${chapterId}_${i}`]"
+                        :key="mark.timestamp"
+                        :cx="mark.x + '%'"
+                        :cy="mark.y + '%'"
+                        r="5"
                         class="ink-mark" />
             </svg>
           </div>
@@ -430,14 +543,6 @@ onUnmounted(() => {
         </div>
       </transition>
 
-      <!-- Tactile Scroll Ribbon -->
-      <div class="scroll-ribbon-container" :style="{ '--scroll': scrollPercent + '%' }">
-        <svg viewBox="0 0 40 400" class="scroll-ribbon">
-            <path d="M20,0 Q30,100 20,200 T20,400" class="ribbon-path" />
-            <circle cx="20" :cy="4 * scrollPercent" r="8" class="ribbon-handle" />
-        </svg>
-      </div>
-
       <ReaderSettings 
         :isOpen="showSettings" 
         :currentSettings="settings"
@@ -464,8 +569,6 @@ onUnmounted(() => {
   padding-top: 0;
   padding-bottom: 400px;
   min-height: 100vh;
-  perspective: 2000px;
-  transform-style: preserve-3d;
   position: relative;
 }
 
@@ -502,21 +605,6 @@ onUnmounted(() => {
     box-shadow: 8px 8px 0 var(--border);
 }
 
-.reader-paper-grain {
-    position: fixed;
-    inset: 0;
-    background-image: url('https://www.transparenttextures.com/patterns/paper-fibers.png');
-    opacity: var(--paper-opacity, 0.1);
-    pointer-events: none;
-    z-index: 10;
-}
-
-.ghost-mark {
-    fill: var(--text-secondary);
-    pointer-events: none;
-    mix-blend-mode: multiply;
-}
-
 .reader-container.long-strip { width: 100%; }
 
 .reader-img {
@@ -524,34 +612,13 @@ onUnmounted(() => {
   max-width: 100vw;
   height: auto;
   border-radius: 0;
-  transition: transform 0.1s linear, mask-size 1.2s ease-out;
-  backface-visibility: hidden;
 }
 
-/* Ink-Bleed Transition Styles */
 .img-wrap {
     width: 100%;
     display: flex;
     justify-content: center;
     overflow: visible;
-    /* Default: Invisible until bleeding triggers */
-    mask-image: radial-gradient(circle, #000 100%, transparent 100%);
-    mask-size: 0% 0%;
-    mask-repeat: no-repeat;
-    mask-position: center;
-    transition: mask-size 1.2s cubic-bezier(0.19, 1, 0.22, 1);
-    opacity: 0;
-}
-
-.img-wrap.bleeding {
-    mask-size: 400% 400%;
-    opacity: 1;
-}
-
-/* Breakout Mode Styling */
-.breakout-panel {
-    box-shadow: 0 30px 60px rgba(0,0,0,0.5);
-    border: 1px solid rgba(255,255,255,0.05);
 }
 
 .panel-container {
@@ -575,12 +642,12 @@ onUnmounted(() => {
     opacity: 0.6;
     filter: blur(1px);
     mix-blend-mode: multiply;
-    animation: inkBleed 0.5s ease-out forwards;
 }
 
-@keyframes inkBleed {
-    from { r: 0; opacity: 0; }
-    to { r: 6; opacity: 0.6; }
+.ghost-mark {
+    fill: var(--red);
+    filter: blur(1.5px);
+    mix-blend-mode: multiply;
 }
 
 /* For reader we don't want massive shadows per image unless spaced out */
@@ -609,10 +676,11 @@ onUnmounted(() => {
 .nav-banner.left { left: 10%; transform: translateY(-50%); }
 
 .slide-banner-enter-active, .slide-banner-leave-active {
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: opacity 0.15s ease;
 }
-.slide-banner-enter-from { opacity: 0; transform: translateY(-50%) scale(0.8) translateX(100px); }
-.slide-banner-leave-to { opacity: 0; transform: translateY(-50%) scale(0.8) translateX(-100px); }
+.slide-banner-enter-from, .slide-banner-leave-to {
+  opacity: 0;
+}
 
 .loader-wrap {
   position: fixed;
@@ -631,39 +699,4 @@ onUnmounted(() => {
     font-weight: 900;
 }
 
-/* Scroll Ribbon Styles */
-.scroll-ribbon-container {
-    position: fixed;
-    right: 2rem;
-    top: 50%;
-    transform: translateY(-50%);
-    height: 400px;
-    width: 40px;
-    z-index: 5000;
-    pointer-events: none;
-}
-
-.scroll-ribbon {
-    width: 100%;
-    height: 100%;
-    overflow: visible;
-}
-
-.ribbon-path {
-    fill: none;
-    stroke: var(--accent);
-    stroke-width: 4;
-    stroke-linecap: round;
-    opacity: 0.2;
-}
-
-.ribbon-handle {
-    fill: var(--accent);
-    filter: drop-shadow(0 0 10px var(--accent));
-    transition: cy 0.1s linear;
-}
-
-@media (max-width: 800px) {
-    .scroll-ribbon-container { display: none; }
-}
 </style>

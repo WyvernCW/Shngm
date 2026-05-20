@@ -55,8 +55,7 @@ const clearGenreFilter = () => {
 const resolveImg = (m) => API.resolveImg(m);
 
 const getFallbackDate = (m) => {
-    // Strictly prioritize the actual chapter date to avoid fake freshness
-    return m.real_updated_at || null;
+    return m.real_updated_at || m.updated_at || null;
 };
 
 const formatTimeShort = (dateStr) => {

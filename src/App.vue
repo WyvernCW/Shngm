@@ -125,13 +125,23 @@ const handleRoute = () => {
     isMobileMenuOpen.value = false;
 };
 
+const isOnline = ref(navigator.onLine);
+
+const updateOnlineStatus = () => {
+    isOnline.value = navigator.onLine;
+};
+
 onMounted(() => {
     window.addEventListener('hashchange', handleRoute);
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
     handleRoute();
 });
 
 onUnmounted(() => {
     window.removeEventListener('hashchange', handleRoute);
+    window.removeEventListener('online', updateOnlineStatus);
+    window.removeEventListener('offline', updateOnlineStatus);
 });
 
 const isReader = computed(() => currentView.value === ReaderView);
@@ -142,7 +152,15 @@ const navigateTo = (path) => {
 </script>
 
 <template>
-  <div class="app-container" :class="{ 'is-reader': isReader }">
+  <div class="app-container" :class="{ 'is-reader': isReader, 'is-offline': !isOnline }">
+    <!-- Offline Banner Alert -->
+    <div v-if="!isOnline" class="offline-banner"
+         v-motion
+         :initial="{ y: -100, opacity: 0 }"
+         :enter="{ y: 0, opacity: 1, transition: { type: 'spring', damping: 20 } }">
+      <span class="offline-dot"></span>
+      <span class="offline-text">OFFLINE ARCHIVE MODE — DOCK STORAGE ACTIVE</span>
+    </div>
 
     <!-- Desktop Sidebar -->
     <nav v-if="!isReader" class="sidebar-comic">
@@ -607,5 +625,56 @@ const navigateTo = (path) => {
 
 @media (max-width: 480px) {
   .view-content { padding: 1rem; padding-top: calc(64px + 1.5rem); padding-bottom: calc(72px + 2rem); }
+}
+
+.offline-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 40px;
+  background: var(--red);
+  color: white;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  border-bottom: var(--border-w) solid var(--border);
+  font-weight: 900;
+  font-size: 0.85rem;
+  letter-spacing: 0.5px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.offline-dot {
+  width: 10px;
+  height: 10px;
+  background: white;
+  border-radius: 50%;
+  box-shadow: 0 0 8px white;
+  animation: offline-blink 1.5s infinite ease-in-out;
+}
+
+.offline-text {
+  text-shadow: 1px 1px 0 #000;
+}
+
+@keyframes offline-blink {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+.app-container.is-offline {
+  padding-top: 40px;
+}
+
+.app-container.is-offline .mobile-header {
+  top: 40px;
+}
+
+.app-container.is-offline .sidebar-comic {
+  top: 40px;
+  height: calc(100vh - 40px);
 }
 </style>

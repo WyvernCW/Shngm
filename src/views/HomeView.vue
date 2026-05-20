@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 import { API } from '../api.js';
 import MangaCard from '../components/MangaCard.vue';
+import PWAInstallBanner from '../components/PWAInstallBanner.vue';
 
 const latestManga = ref([]);
 const mwdManga = ref([]);
@@ -14,8 +15,7 @@ const featuredIdx = ref(0);
 let featTimer;
 
 const getFallbackDate = (m) => {
-    // Strictly prioritize the actual chapter date to avoid fake freshness from series metadata
-    return m.real_updated_at || null;
+    return m.real_updated_at || m.updated_at || null;
 };
 
 const formatTimeShort = (dateStr) => {
@@ -94,6 +94,7 @@ const resolveImg = (m) => API.resolveImg(m);
 
 <template>
   <div class="home-view">
+    <PWAInstallBanner />
 
     <!-- Hero Banner Comic Panel -->
     <section v-if="latestManga.length > 0" class="home-section hero-section">

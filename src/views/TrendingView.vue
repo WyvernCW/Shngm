@@ -14,8 +14,7 @@ const tabs = [
 ];
 
 const getFallbackDate = (m) => {
-    // Strictly prioritize the actual chapter date to avoid fake freshness
-    return m.real_updated_at || null;
+    return m.real_updated_at || m.updated_at || null;
 };
 
 const loadData = async () => {
@@ -24,27 +23,14 @@ const loadData = async () => {
     try {
         const r = await API.getTrending(activeTab.value, 48);
         const data = r?.data || [];
-        
-        // Initial setup with null dates
+
         mangaListWithDates.value = data.map(m => ({ ...m, real_updated_at: null }));
 
-        // Background update for real dates
-        (async () => {
-            for (let i = 0; i < data.length; i++) {
-                const m = data[i];
-                try {
-                    const chRes = await API.getChapterList(m.manga_id);
-                    const chapters = chRes?.data || [];
-                    const latestCh = chapters[0];
-                    const realDate = latestCh?.release_date || latestCh?.created_at;
-                    if (realDate) {
-                        mangaListWithDates.value[i].real_updated_at = realDate;
-                    }
-                } catch (e) {
-                    console.error('Error fetching date for', m.manga_id, e);
-                }
-            }
-        })();
+        // Background: parallel freshness via cached engine
+        API.getChapterDatesParallel(mangaListWithDates.value, (id, date) => {
+            const idx = mangaListWithDates.value.findIndex(m => m.manga_id === id);
+            if (idx !== -1) mangaListWithDates.value[idx].real_updated_at = date;
+        });
     } catch (e) {
         console.error(e);
     } finally {

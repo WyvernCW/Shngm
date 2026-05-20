@@ -2,7 +2,7 @@
 
 <br/>
 
-```
+```text
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⠖⢠⠀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠠⣦⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⡀⣄⠈⢧⢲⡄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣰⡽⢠⣯⣾⢴⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣄⠈⠷⠒⠀⣠⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠐⠸⡍⡘⣄⠘⣷⣳⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡰⢹⡇⠋⣽⠃⢸⢆⣶⠀⠀⡀⠀⡀⠀⠀⠀⠀⢸⠀⠑⡄⣠⠊⠈⡆⠀⠀⠀⠀⡀⢸⡄⠀⠀⠰⣄⢱⠱⡀⠈⢷⣹⣇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
@@ -38,155 +38,96 @@
 ⣿⣗⠀⠉⣿⣦⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⣿⣿⣿⣿⣿⣿⣃⣼⠀⠀⠸⠃⠀⠀⠀⠀⠀⢿⡦⠄⠀⣠⣿⣿⣿⣿⣿⣿⣿⠀⠀⠀⠇⠀⠀⠀⠈⠀⠀⠀⣠⣴⣿⣗⠀⣿⣿
 ```
 
-**THE DIGITAL MANUSCRIPT ARCHIVE**
+**MANGACENTER ARCHIVE**
 
-*A reader built against the sterile web.*
+*A high-performance, multi-source decentralized comic reading platform.*
 
 <br/>
 
-[![Open Archive](https://img.shields.io/badge/OPEN_THE_ARCHIVE-shngm.vercel.app-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://shngm.vercel.app/)
-&nbsp;
 [![Status](https://img.shields.io/badge/STATUS-LIVE-00ff88?style=for-the-badge)]()
 &nbsp;
-[![Engine](https://img.shields.io/badge/ENGINE-NODE.JS-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)]()
+[![Engine](https://img.shields.io/badge/ENGINE-VUE_3_VITE-42b883?style=for-the-badge&logo=vuedotjs&logoColor=white)]()
 &nbsp;
 [![License](https://img.shields.io/badge/LICENSE-MIT-cccccc?style=for-the-badge)]()
 
 <br/>
 
-> **[→ shngm.vercel.app ←](https://shngm.vercel.app/)**
->
-> *Enter the archive. The manuscript is waiting.*
-
-<br/>
-
----
-
 </div>
 
-## ◈ WHAT IS VRTWEL
+## ◈ WHAT IS THIS?
 
-VRTWEL is a rejection of the sterile, commodified reading experience.
-
-Every chapter is treated as a **physical artifact** — catalogued, preserved, and rendered with deliberate weight inside a high-fidelity digital archive. This is not a manga reader. It is a manuscript system.
-
-The web standardized reading into a frictionless commodity. VRTWEL refuses that.
-
----
+This is a premium, high-performance web aggregator for reading comics, manga, and manhwa. Built with **Vue 3** and powered by a **Vercel Serverless Architecture**, this platform unifies multiple content sources (Shinigami, CosmicScans, ManhwaDesu) into a single, seamless reading experience with zero compromises on performance or design.
 
 ## ◈ ARCHITECTURE
 
 | Component | Status | Engine |
 | :--- | :---: | :--- |
-| **Reader Core** | `STABLE` | Brutalist SVG Masking |
-| **API Proxy** | `ACTIVE` | Node.js + Exponential Backoff |
-| **Physics Engine** | `DYNAMIC` | Genre-Reactive 3D Z-Space |
-| **Reader History** | `WEATHERED` | Shared Reader Ghost System |
-| **Asset Pipeline** | `SERIALIZED` | Smart Path Remapping |
-| **Freshness Gate** | `ACTIVE` | 5-Hour High-Precision Windows |
-
----
+| **Frontend Framework** | `STABLE` | Vue 3 (Composition API) + Vite |
+| **UI/UX Design** | `STABLE` | Custom CSS, Glassmorphism, Responsive Grid |
+| **Proxy Layer** | `ACTIVE` | Serverless Vercel APIs (Bypasses CORS & Hotlinking) |
+| **Deduplication Engine** | `ACTIVE` | Token-Based Jaccard Similarity (Fuzzy Math) |
+| **Image Pipeline** | `STABLE` | Exponential Backoff Proxy + Blob Rendering |
+| **Global State** | `STABLE` | IndexedDB (Offline Persistence) + Shared Store |
 
 ## ◈ CORE MECHANICS
 
-### ❙ Kinetic Depth
-Panels **physically detach** from the page as you scroll, floating in true 3D Z-space. Parallax is not a visual effect here — it is the reading experience itself.
+### ❙ Aggregation & Proxy Shield
+Comics are drawn simultaneously from multiple high-profile sources. To avoid strict CORS blockades and hotlinking restrictions, all network requests and images are routed through a robust internal API proxy. Failed image loads use intelligent retry logic and exponential backoff to ensure an uninterrupted reading session.
 
-### ❙ Genre Resonance
-The reader's physicality shifts with the story's soul.
-Horror **bleeds.** Action **pulses.** Comedy **breathes.**
-Every genre carries its own atmospheric signature deep into the rendering layer — felt before it is seen.
+### ❙ Advanced Deduplication Engine
+When combining multiple sources, duplicates are inevitable (e.g., "The Martial God Who Regressed To Level 2" vs "Martial God Regressed to Level 2"). We built a massive parallel background fetcher that caches the authoritative catalog into memory. A **Jaccard Fuzzy Token Matcher** mathematically strips out punctuation and stop words, calculating the intersection-over-union of the word sets. If the titles are ≥60% similar, duplicates are instantly purged from the UI.
 
-### ❙ Shared Ink — Reader Ghosts
-You are never the first to open a chapter. Deterministic ghost marks accumulate across every session, left by every reader before you. The manuscript is **worn by thousands of readings** — a living, weathered document shaped by collective presence.
+### ❙ Infinite Scrolling & Progressive Loading
+The application employs deep integration with the Intersection Observer API. As you browse the catalog, the platform seamlessly loads upcoming pages (Infinite Scrolling). In the reading view, images are strictly lazy-loaded to save bandwidth and preserve immediate rendering speed.
 
-### ❙ Resilience Layer
-- **Proxy Shield** — Aggressive server-side routing that handles all origin-level restrictions without surface-level failure.
-- **Freshness Gate** — 5-hour high-precision release windows. Content is verified fresh at delivery, not served stale from cache.
-- **Exponential Backoff** — Intelligent retry logic absorbs upstream instability invisibly. The archive does not go down; it waits.
-
----
+### ❙ Glassmorphic Aesthetics
+The platform is engineered around a visually stunning, tokens-first design system. It uses dynamic blur effects, sleek translucent cards, and smooth CSS-driven micro-animations that feel premium and modern, avoiding the "cheap" feel of traditional aggregator sites.
 
 ## ◈ TECH STACK
 
-```
-Frontend     →  HTML · CSS · Vanilla JS    Brutalist SVG-driven UI
-Backend      →  Node.js + Express          Proxy layer + API routing
-Deployment   →  Vercel                     Serverless functions + CDN edge
-Scraping     →  Cheerio                    Server-side DOM parsing pipeline
-Auth         →  iron-session               Single-user encrypted session
-Scheduling   →  Vercel Cron               Automated content sync
-```
-
----
-
-## ◈ PROJECT STRUCTURE
-
-```
-vrtwel/
-├── api/                  # Serverless functions (Vercel)
-│   ├── proxy.js          # Image proxy + smart path remapping
-│   └── sync.js           # Cron-triggered content sync
-├── public/               # Static frontend
-│   ├── index.html        # Archive catalog view
-│   ├── reader.html       # Chapter reader — physics engine core
-│   └── assets/
-│       ├── css/
-│       └── js/
-├── src/                  # Core logic
-│   ├── scraper.js        # Cheerio-based content pipeline
-│   ├── cache.js          # Freshness gate + TTL management
-│   └── session.js        # iron-session wrapper
-├── vercel.json           # Deployment + cron configuration
-└── package.json
+```text
+Frontend     →  Vue 3 · Vite · Vanilla CSS
+Backend      →  Node.js (Serverless Proxy Layer)
+Deployment   →  Vercel
+Scraping     →  Cheerio (Server-side DOM parsing pipeline)
+Database     →  IndexedDB (Local storage & History)
 ```
 
----
+## ◈ DIRECTORY STRUCTURE
 
-## ◈ DESIGN PHILOSOPHY
+```text
+/
+├── api/                  # Vercel Serverless Proxy endpoints
+│   ├── image-proxy.js    # Image hotlink bypasser
+│   ├── shinigami-proxy.js# API router for Shinigami
+│   ├── cosmicscans/      # Scrapers for CosmicScans
+│   └── manhwadesu/       # Scrapers for ManhwaDesu
+├── public/               # Static assets & Icons
+├── src/                  # Vue 3 Frontend logic
+│   ├── components/       # Reusable UI components (ComicCard, etc.)
+│   ├── views/            # Main application views (Home, Detail, Read)
+│   ├── App.vue           # Root Component
+│   ├── api.js            # Complex data fetching, merging, & deduplication
+│   └── index.css         # Core Design System & Tokens
+├── vercel.json           # Vercel Deployment configuration
+└── package.json          # Dependency Manifest
+```
 
-The modern reader is a white card on a white background, pulling you toward the next tile in an algorithm's queue. VRTWEL is built from the opposite premise entirely.
+## ◈ LIVE PLATFORM
 
-- **Physical weight** over infinite, weightless scrolling.
-- **Shared history** over isolated, ephemeral sessions.
-- **Genre physicality** over a uniform blank canvas.
-- **Archival permanence** over disposable feeds.
+> **[→ shngm.vercel.app ←](https://shngm.vercel.app/)**
+>
+> *Experience the high-performance MangaCenter archive directly.*
 
-Every decision — from the brutalist SVG masking to the ghost reader system — is made in service of one idea: **the reader is the manuscript, and the manuscript remembers.**
-
----
 
 ## ◈ CONTRIBUTING
 
 Pull requests are welcome. Before contributing:
-
 1. Open an issue first — describe the change and its intent.
 2. Keep the dependency footprint lean. No unnecessary packages.
-3. Any UI changes must respect the brutalist aesthetic and physical metaphor.
+3. Any UI changes must respect the glassmorphic aesthetic and modern premium layout.
 4. Test proxy routing changes locally against the live origin before pushing.
-
----
 
 ## ◈ LICENSE
 
 MIT — see [`LICENSE`](./LICENSE) for full terms.
-
----
-
-<div align="center">
-
-<br/>
-
-[![Open Archive](https://img.shields.io/badge/ENTER_THE_ARCHIVE-shngm.vercel.app-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://shngm.vercel.app/)
-
-<br/>
-
-```
-◌  ENGINEERED BY VRTWELTEAM  ◌
-```
-
-*Built with deliberate weight. Against the sterile web.*
-
-<br/>
-
-</div>
