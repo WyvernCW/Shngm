@@ -47,3 +47,7 @@ dynamodb-local
 
 # OS
 Thumbs.db
+
+# Scratch Cache
+scratch/api_cache/
+scratch/img_cache/
