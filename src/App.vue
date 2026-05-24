@@ -105,8 +105,9 @@ const onNavPointerUp = () => {
 
 const handleRoute = () => {
     const hash = window.location.hash || '#/';
-    currentHash.value = hash;
     
+    localStorage.setItem('vrtwel_last_route', hash);
+
     const [rawPath, ...parts] = hash.replace('#/', '').split('/');
     const [path, queryStr] = rawPath.split('?');
     const queryParams = Object.fromEntries(new URLSearchParams(queryStr || ''));
@@ -132,10 +133,30 @@ const updateOnlineStatus = () => {
 };
 
 onMounted(() => {
+    if (window.location.hash === '' || window.location.hash === '#/' || window.location.hash === '#') {
+        const lastRoute = localStorage.getItem('vrtwel_last_route');
+        if (lastRoute && lastRoute !== '#/') {
+            window.location.hash = lastRoute;
+        }
+    }
+
     window.addEventListener('hashchange', handleRoute);
     window.addEventListener('online', updateOnlineStatus);
     window.addEventListener('offline', updateOnlineStatus);
     handleRoute();
+
+    if (window.Capacitor) {
+        import('@capacitor/app').then(({ App: CapacitorApp }) => {
+            CapacitorApp.addListener('backButton', ({ canGoBack }) => {
+                const h = window.location.hash;
+                if (h === '' || h === '#/' || h === '#/all' || h === '#/trending' || h === '#/library' || h === '#/search') {
+                    CapacitorApp.exitApp();
+                } else {
+                    window.history.back();
+                }
+            });
+        });
+    }
 });
 
 onUnmounted(() => {

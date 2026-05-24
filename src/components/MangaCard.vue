@@ -28,7 +28,7 @@ const isVeryRecent = computed(() => {
   <a :href="href" class="manga-card">
     
     <div class="comic-panel poster-wrap">
-      <img :src="coverUrl" :alt="title" loading="lazy" class="poster-img" @error="e => e.target.src = '/assets/covers/standard.svg'">
+      <img :src="coverUrl" :alt="title" loading="lazy" decoding="async" class="poster-img" @error="e => e.target.src = '/assets/covers/standard.svg'">
 
       <div class="top-left-badges">
         <div v-if="showStatusBadges && status" class="comic-badge time-badge" :class="{ 'recent': isVeryRecent }">

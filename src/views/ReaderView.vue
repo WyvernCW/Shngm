@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import { API, PRIORITY } from '../api';
+import { Downloader } from '../downloader';
 import { useChapterNavigation } from '../composables/useChapterNavigation';
 import { useDoubleTap } from '../composables/useDoubleTap';
 import { useSwipeNavigation } from '../composables/useSwipeNavigation';
@@ -19,6 +20,7 @@ const chapterNumber = computed(() => props.params.parts[1]);
 
 const readerContainer = ref(null);
 const chapterData = ref(null);
+const localPages = ref([]);
 const allChapters = ref([]);
 const seriesDetail = ref(null);
 const isLoading = ref(true);
@@ -69,8 +71,17 @@ const loadChapter = async () => {
     isLoading.value = true;
     libraryUpdated.value = false;
     currentPage.value = 1;
+    localPages.value = [];
 
     try {
+        const lp = await Downloader.getLocalPages(chapterId.value);
+        if (lp && lp.length > 0) {
+            localPages.value = lp;
+            // Fetch minimal detail just for metadata/titles if needed
+            const dRes = await API.getDetail(seriesDetail.value?.manga_id || localStorage.getItem('last_manga_id'));
+            if (dRes) seriesDetail.value = dRes.data;
+        }
+
         const res = await API.getChapter(chapterId.value);
 
         if (res?.data) {
@@ -164,6 +175,8 @@ const updateLibrary = () => {
 watch(chapterId, loadChapter, { immediate: true });
 
 const images = computed(() => {
+    if (localPages.value && localPages.value.length > 0) return localPages.value;
+
     const ch = chapterData.value?.chapter || chapterData.value?.data?.chapter;
     if (!ch) return [];
     
@@ -495,6 +508,7 @@ onUnmounted(() => {
             <img :src="src"
                  class="reader-img"
                  loading="lazy"
+                 decoding="async"
                  :style="{ marginBottom: settings.readingMode === 'long-strip' ? settings.gap + 'px' : 0 }"
                  @error="e => e.target.style.display = 'none'">
 

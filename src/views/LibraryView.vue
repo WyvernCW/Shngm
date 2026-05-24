@@ -1,8 +1,12 @@
 <script setup>
 import { ref, onMounted, onActivated, computed } from 'vue';
-import { Library, BookOpen, Clock, TrendingUp } from 'lucide-vue-next';
+import { Library, BookOpen, Clock, TrendingUp, HardDrive, Trash2 } from 'lucide-vue-next';
 import { API } from '../api.js';
+import { Downloader } from '../downloader.js';
 import MangaCard from '../components/MangaCard.vue';
+
+const activeTab = ref('STASH');
+const downloadedManga = ref([]);
 
 const items = ref([]);
 const itemsWithRealDates = ref([]);
@@ -30,6 +34,17 @@ const loadLibrary = async () => {
     } else {
         items.value = [];
         itemsWithRealDates.value = [];
+    }
+    
+    if (window.Capacitor) {
+        downloadedManga.value = await Downloader.getDownloadedLibrary();
+    }
+};
+
+const deleteDownload = async (mangaId) => {
+    if (confirm("Delete all downloaded chapters for this manga?")) {
+        await Downloader.deleteManga(mangaId);
+        await loadLibrary();
     }
 };
 
@@ -145,8 +160,14 @@ const closeFocus = () => {
   <div class="library-view">
     
     <div class="page-header">
-      <h2 class="section-title">MY STASH</h2>
+      <div class="tabs">
+        <h2 class="section-title" :class="{ inactive: activeTab !== 'STASH' }" @click="activeTab = 'STASH'">MY STASH</h2>
+        <h2 class="section-title" :class="{ inactive: activeTab !== 'DOWNLOADS' }" @click="activeTab = 'DOWNLOADS'">DOWNLOADS</h2>
+      </div>
     </div>
+
+    <!-- STASH TAB -->
+    <template v-if="activeTab === 'STASH'">
 
     <!-- Reading Stats Comic Style -->
     <div v-if="stats" class="stats-section">
@@ -255,6 +276,35 @@ const closeFocus = () => {
         <a href="#/all" class="comic-button">BROWSE NOW</a>
       </div>
     </div>
+    </template>
+
+    <!-- DOWNLOADS TAB -->
+    <template v-if="activeTab === 'DOWNLOADS'">
+       <div v-if="downloadedManga.length > 0" class="manga-grid">
+         <div v-for="m in downloadedManga" :key="m.id" class="dl-card comic-panel">
+            <div class="dl-poster">
+                <img :src="m.poster" />
+            </div>
+            <div class="dl-info">
+                <h3>{{ m.title }}</h3>
+                <div class="dl-stats">
+                   <span>{{ m.chapterCount }} CH</span>
+                   <span>{{ Downloader.formatSize(m.totalSize) }}</span>
+                </div>
+                <button class="comic-button" style="background:var(--red); color:white; width:100%; margin-top:10px;" @click="deleteDownload(m.id)">
+                   <Trash2 size="16" /> DELETE
+                </button>
+            </div>
+         </div>
+       </div>
+       <div v-else class="empty-state">
+          <div class="empty-box comic-panel">
+            <HardDrive :size="64" strokeWidth="1.5" />
+            <h3>NO DOWNLOADS</h3>
+            <p>You haven't saved any comics for offline reading yet.</p>
+          </div>
+       </div>
+    </template>
   </div>
 </template>
 
@@ -269,6 +319,11 @@ const closeFocus = () => {
     padding-bottom: 1rem;
 }
 
+.tabs {
+    display: flex;
+    gap: 2rem;
+}
+
 .section-title {
     font-size: 3.5rem;
     font-weight: 900;
@@ -276,6 +331,48 @@ const closeFocus = () => {
     letter-spacing: -2px;
     margin: 0;
     line-height: 1;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.section-title.inactive {
+    opacity: 0.3;
+}
+
+.dl-card {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.dl-poster img {
+    width: 100%;
+    aspect-ratio: 2/3;
+    object-fit: cover;
+    border-bottom: var(--border-w) solid var(--border);
+}
+
+.dl-info {
+    padding: 1rem;
+}
+
+.dl-info h3 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.1rem;
+    font-weight: 900;
+    line-height: 1.2;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.dl-stats {
+    display: flex;
+    justify-content: space-between;
+    font-weight: 900;
+    font-size: 0.8rem;
+    opacity: 0.7;
 }
 
 .library-content {

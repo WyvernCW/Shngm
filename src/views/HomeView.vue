@@ -127,7 +127,7 @@ const resolveImg = (m) => API.resolveImg(m);
           <!-- Right Image with comic halftone effect behind it -->
           <div class="hero-poster-container">
             <transition name="slide-left" mode="out-in">
-              <img :key="featuredIdx" :src="resolveImg(latestManga[featuredIdx])" class="hero-img comic-panel" />
+              <img :key="featuredIdx" :src="resolveImg(latestManga[featuredIdx])" loading="eager" decoding="async" class="hero-img comic-panel" />
             </transition>
           </div>
         </div>
@@ -142,7 +142,7 @@ const resolveImg = (m) => API.resolveImg(m);
       <div class="continue-scroll">
         <a v-for="(item, i) in continueReading" :key="item.id"
            :href="`#/series/${item.mangaId || item.id}`" class="continue-card comic-panel">
-          <img :src="item.coverUrl || item.cover" class="continue-cover" />
+          <img :src="item.coverUrl || item.cover" loading="lazy" decoding="async" class="continue-cover" />
           <div class="continue-info">
             <span class="continue-title">{{ item.mangaTitle || item.title }}</span>
             <span class="continue-ch">CH. {{ item.chapterNumber || item.chapter }}</span>
@@ -186,7 +186,7 @@ const resolveImg = (m) => API.resolveImg(m);
         <a v-for="(m, index) in trendingManga" :key="m.manga_id" :href="`#/series/${m.manga_id}`" class="trending-card comic-panel">
           <div class="trending-rank">#{{ index + 1 }}</div>
           <div class="trending-img-wrap">
-            <img :src="resolveImg(m)" class="trending-img" loading="lazy" />
+            <img :src="resolveImg(m)" class="trending-img" loading="lazy" decoding="async" />
           </div>
           <div class="trending-info">
             <span class="trending-title">{{ m.title }}</span>

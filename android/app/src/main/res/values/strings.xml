@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Shngm</string>
+    <string name="title_activity_main">Shngm</string>
+    <string name="package_name">id.shngm.app</string>
+    <string name="custom_url_scheme">id.shngm.app</string>
+</resources>

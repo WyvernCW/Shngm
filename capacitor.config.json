@@ -1,0 +1,10 @@
+{
+  "appId": "id.shngm.app",
+  "appName": "Shngm",
+  "webDir": "dist",
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
+}
