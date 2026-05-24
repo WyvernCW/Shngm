@@ -32,6 +32,9 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
+  const isLocal = url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname.match(/^\d+\.\d+\.\d+\.\d+$/);
+  if (isLocal) return; // Bypass service worker completely in local development to avoid caching & CORS issues
+
 
   // 1. Dynamic Cache-First Interceptor for Image Proxy requests
   if (url.pathname.includes('/api/image-proxy')) {

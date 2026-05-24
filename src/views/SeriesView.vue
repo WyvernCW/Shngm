@@ -1,8 +1,6 @@
 <script setup>
-import { ref, watch, onMounted, computed } from 'vue';
-import { Download, Check, Loader2, ArrowDownToLine } from 'lucide-vue-next';
+import { ref, computed, watch, onMounted } from 'vue';
 import { API } from '../api.js';
-import { Downloader } from '../downloader.js';
 
 const props = defineProps({
   params: Object
@@ -64,48 +62,7 @@ const toggleBookmark = () => {
 
 const resolveImg = (m) => API.resolveImg(m);
 
-const downloadedChaps = ref(new Set());
-const dlProgress = ref({});
-const globalProgress = ref(0);
-const isDownloadingAll = ref(false);
 
-const checkDownloaded = async () => {
-    const list = await Downloader.getDownloadedChapters(mangaId.value);
-    downloadedChaps.value = new Set(list.map(c => c.chapter_id));
-};
-
-watch(chapters, () => {
-    if (chapters.value.length > 0) checkDownloaded();
-});
-
-const startDownload = async (chapter) => {
-    const chId = chapter.chapter_id || chapter.id;
-    if (downloadedChaps.value.has(chId)) return;
-    
-    dlProgress.value[chId] = '0%';
-    try {
-        await Downloader.downloadChapter(detail.value, chapter, (curr, total) => {
-            dlProgress.value[chId] = Math.round((curr/total)*100) + '%';
-        });
-        downloadedChaps.value.add(chId);
-        dlProgress.value[chId] = 'DONE';
-    } catch(e) {
-        dlProgress.value[chId] = 'ERR';
-        console.error(e);
-    }
-};
-
-const downloadAll = async () => {
-    if (isDownloadingAll.value) return;
-    isDownloadingAll.value = true;
-    const toDownload = chapters.value.filter(ch => !downloadedChaps.value.has(ch.chapter_id || ch.id));
-    for (let i = 0; i < toDownload.length; i++) {
-        globalProgress.value = Math.round((i / toDownload.length) * 100);
-        await startDownload(toDownload[i]);
-    }
-    globalProgress.value = 100;
-    setTimeout(() => { isDownloadingAll.value = false; globalProgress.value = 0; }, 2000);
-};
 </script>
 
 <template>
@@ -150,13 +107,6 @@ const downloadAll = async () => {
               <button class="comic-button secondary" @click="toggleBookmark">
                 {{ isBookmarked ? '✓ SAVED' : '+ ADD TO STASH' }}
               </button>
-              <div class="dl-group">
-                  <button class="comic-button action" @click="downloadAll" :disabled="isDownloadingAll || chapters.length === 0">
-                    <ArrowDownToLine size="20" style="margin-right: 8px;" />
-                    {{ isDownloadingAll ? `DOWNLOADING... ${globalProgress}%` : 'DOWNLOAD ALL' }}
-                  </button>
-                  <span v-if="chapters.length > 0" class="dl-est">~{{ Downloader.estimateSize(chapters.length) }}</span>
-              </div>
             </div>
           </div>
         </div>
@@ -179,11 +129,6 @@ const downloadAll = async () => {
                  <span class="ch-num">CH. {{ ch.chapter_number }}</span>
                  <span class="ch-date">{{ formatTime(ch.release_date) }}</span>
               </a>
-              <button class="ch-dl-btn" @click.prevent="startDownload(ch)" :disabled="dlProgress[ch.chapter_id || ch.id] || downloadedChaps.has(ch.chapter_id || ch.id)">
-                 <Check v-if="downloadedChaps.has(ch.chapter_id || ch.id)" size="18" strokeWidth="3" />
-                 <span v-else-if="dlProgress[ch.chapter_id || ch.id] && dlProgress[ch.chapter_id || ch.id] !== 'ERR'">{{ dlProgress[ch.chapter_id || ch.id] }}</span>
-                 <Download v-else size="18" strokeWidth="2.5" />
-              </button>
            </div>
         </div>
       </div>

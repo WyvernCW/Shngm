@@ -7,7 +7,126 @@ import LibraryView from './views/LibraryView.vue';
 import SeriesView from './views/SeriesView.vue';
 import ReaderView from './views/ReaderView.vue';
 import SearchView from './views/SearchView.vue';
-import { BookOpen, Flame, Compass, Library, Search } from 'lucide-vue-next';
+import { BookOpen, Flame, Compass, Library, Search, Bell } from 'lucide-vue-next';
+
+// Update Checker State
+const LOCAL_VERSION = '0.9.0';
+const isUpdateAvailable = ref(false);
+const showUpdateModal = ref(false);
+const updateInfo = ref(null);
+
+// Formatted changelog HTML parser
+const formattedChangelog = computed(() => {
+    if (!updateInfo.value?.changelog) return '';
+    let html = updateInfo.value.changelog;
+    // Replace HTML entities
+    html = html
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    // Bold: **text**
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    // Bullet points: - item or * item
+    html = html.replace(/^\s*[-*]\s+(.*)$/gm, '<li>$1</li>');
+    // Wrap lists
+    html = html.replace(/(<li>.*<\/li>)/gs, '<ul>$1<\/ul>');
+    // Headings: ### text
+    html = html.replace(/^\s*###\s+(.*)$/gm, '<h3>$1</h3>');
+    html = html.replace(/^\s*##\s+(.*)$/gm, '<h2>$1</h2>');
+    html = html.replace(/^\s*#\s+(.*)$/gm, '<h1>$1</h1>');
+    // Paragraphs / line breaks
+    html = html.replace(/\n/g, '<br>');
+    return html;
+});
+
+const checkForUpdates = async () => {
+    try {
+        const res = await fetch('https://api.github.com/repos/WyvernCW/Shngm/releases/latest');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data && data.tag_name) {
+            const latestTag = data.tag_name; // e.g. "V1.0.0"
+            const cleanLatest = latestTag.replace(/^[vV]/, '');
+            const cleanLocal = LOCAL_VERSION.replace(/^[vV]/, '');
+            
+            if (cleanLatest !== cleanLocal) {
+                updateInfo.value = {
+                    version: latestTag,
+                    title: data.name || latestTag,
+                    changelog: data.body || '',
+                    url: data.html_url || 'https://github.com/WyvernCW/Shngm/releases/tag/V1.0.0',
+                    assets: data.assets ? data.assets.map(a => ({ name: a.name, url: a.browser_download_url })) : []
+                };
+                isUpdateAvailable.value = true;
+                
+                // Show update modal automatically if not dismissed yet
+                const dismissed = localStorage.getItem('shngm_update_dismissed');
+                if (dismissed !== latestTag) {
+                    showUpdateModal.value = true;
+                }
+            }
+        }
+    } catch (e) {
+        console.error('Failed to check for updates:', e);
+    }
+};
+
+const handleLater = () => {
+    showUpdateModal.value = false;
+    if (updateInfo.value?.version) {
+        localStorage.setItem('shngm_update_dismissed', updateInfo.value.version);
+    }
+};
+
+const handleUpdateNow = () => {
+    if (!updateInfo.value) return;
+    
+    // Detect platform
+    let platform = 'web';
+    if (window.Capacitor && window.Capacitor.isNative) {
+        platform = window.Capacitor.getPlatform(); // 'android' or 'ios'
+    } else {
+        // Web detection fallback based on user agent
+        const ua = (navigator.userAgent || navigator.vendor || window.opera || '').toLowerCase();
+        if (/android/i.test(ua)) {
+            platform = 'android';
+        } else if (/ipad|iphone|ipod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) {
+            platform = 'ios';
+        }
+    }
+    
+    const assets = updateInfo.value.assets || [];
+    
+    if (platform === 'android') {
+        const apkAsset = assets.find(a => a.name.toLowerCase().endsWith('.apk'));
+        if (apkAsset) {
+            window.open(apkAsset.url, '_blank');
+            showUpdateModal.value = false;
+            return;
+        }
+    } else if (platform === 'ios') {
+        const ipaAsset = assets.find(a => a.name.toLowerCase().endsWith('.ipa'));
+        const debAsset = assets.find(a => a.name.toLowerCase().endsWith('.deb'));
+        
+        if (ipaAsset || debAsset) {
+            if (ipaAsset) window.open(ipaAsset.url, '_blank');
+            if (debAsset) {
+                // Short delay to avoid concurrent window.open blocks
+                setTimeout(() => {
+                    window.open(debAsset.url, '_blank');
+                }, 400);
+            }
+            showUpdateModal.value = false;
+            return;
+        }
+    }
+    
+    // Default fallback: open github releases page
+    if (updateInfo.value.url) {
+        window.open(updateInfo.value.url, '_blank');
+    }
+    showUpdateModal.value = false;
+};
 
 const currentView = shallowRef(HomeView);
 const currentParams = ref({ parts: [], queryParams: {} });
@@ -144,6 +263,7 @@ onMounted(() => {
     window.addEventListener('online', updateOnlineStatus);
     window.addEventListener('offline', updateOnlineStatus);
     handleRoute();
+    checkForUpdates();
 
     if (window.Capacitor) {
         import('@capacitor/app').then(({ App: CapacitorApp }) => {
@@ -191,6 +311,10 @@ const navigateTo = (path) => {
           <span>VRTWEL</span>
           <span class="wm-sub">COMICS</span>
         </div>
+        <button v-if="isUpdateAvailable" class="header-bell-btn desktop-bell" @click.stop="showUpdateModal = true">
+          <Bell :size="20" strokeWidth="2.5" />
+          <span v-if="!showUpdateModal" class="bell-badge"></span>
+        </button>
       </div>
 
       <div class="rail-nav">
@@ -226,9 +350,15 @@ const navigateTo = (path) => {
         <img src="/assets/logo.png" class="logo-box" alt="VRTWEL Logo" />
         <span class="mobile-wordmark">VRTWEL</span>
       </div>
-      <button class="mobile-search-btn" @click="navigateTo('#/search')">
-        <Search :size="24" strokeWidth="2.5" />
-      </button>
+      <div class="mobile-header-actions" style="display: flex; align-items: center; gap: 8px;">
+        <button v-if="isUpdateAvailable" class="header-bell-btn" @click.stop="showUpdateModal = true" style="margin-left: 0;">
+          <Bell :size="18" strokeWidth="2.5" />
+          <span v-if="!showUpdateModal" class="bell-badge"></span>
+        </button>
+        <button class="mobile-search-btn" @click="navigateTo('#/search')">
+          <Search :size="24" strokeWidth="2.5" />
+        </button>
+      </div>
     </header>
 
     <!-- Main View Content -->
@@ -288,6 +418,28 @@ const navigateTo = (path) => {
         <span>{{ item.label }}</span>
       </a>
     </nav>
+
+    <!-- Update Announcement Modal (Brutalist Acrylic) -->
+    <Transition name="fade-modal">
+      <div v-if="showUpdateModal && updateInfo" class="update-overlay" @click="handleLater">
+        <div class="update-modal comic-panel" @click.stop>
+          <div class="update-header">
+            <h2 class="update-title">UPDATE AVAILABLE!</h2>
+            <span class="update-tag">{{ updateInfo.version }}</span>
+          </div>
+          
+          <div class="update-body">
+            <div class="changelog-header">CHANGELOG FOR {{ updateInfo.title.toUpperCase() }}</div>
+            <div class="changelog-content" v-html="formattedChangelog"></div>
+          </div>
+          
+          <div class="update-actions">
+            <button class="comic-button secondary" @click="handleLater">LATER</button>
+            <button class="comic-button update-now-btn" @click="handleUpdateNow">UPDATE NOW</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
 
     <!-- Cylindrical Lens Stretch Filter -->
     <svg style="position: absolute; width: 0; height: 0; pointer-events: none;">
@@ -697,5 +849,200 @@ const navigateTo = (path) => {
 .app-container.is-offline .sidebar-comic {
   top: 40px;
   height: calc(100vh - 40px);
+}
+
+/* Header Bell Icon */
+.header-bell-btn {
+  background: var(--surface);
+  border: 2px solid var(--border);
+  color: var(--text);
+  cursor: pointer;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  box-shadow: 2px 2px 0 var(--border);
+  transition: transform 0.1s, background-color 0.2s;
+  padding: 0;
+  margin-left: 8px;
+}
+
+.header-bell-btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 var(--border);
+}
+
+.header-bell-btn:hover {
+  background: var(--yellow);
+  color: black;
+}
+
+.bell-badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 8px;
+  height: 8px;
+  background: var(--accent);
+  border: 1.5px solid var(--border);
+  border-radius: 50%;
+  box-shadow: 0 0 4px var(--accent);
+}
+
+.desktop-bell {
+  opacity: 0;
+  transition: opacity 0.2s;
+  margin-left: auto;
+}
+
+.sidebar-comic:hover .desktop-bell {
+  opacity: 1;
+}
+
+/* Update Modal Overlay */
+.update-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 10, 10, 0.4);
+  backdrop-filter: blur(40px) saturate(200%) contrast(90%);
+  -webkit-backdrop-filter: blur(40px) saturate(200%) contrast(90%);
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.update-overlay::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  opacity: 0.05;
+  pointer-events: none;
+  mix-blend-mode: overlay;
+}
+
+.update-modal {
+  width: 100%;
+  max-width: 500px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 2rem;
+  border-width: 4px;
+  box-shadow: 12px 12px 0px var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.update-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 2px dashed var(--border);
+  padding-bottom: 0.75rem;
+}
+
+.update-title {
+  font-size: 1.8rem;
+  font-weight: 900;
+  letter-spacing: -1px;
+  color: var(--yellow);
+  text-shadow: 2px 2px 0 var(--border);
+  margin: 0;
+}
+
+.update-tag {
+  background: var(--accent);
+  color: white;
+  font-weight: 900;
+  padding: 2px 8px;
+  border: 2px solid var(--border);
+  font-size: 0.8rem;
+  box-shadow: 2px 2px 0 var(--border);
+}
+
+.update-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.changelog-header {
+  font-weight: 900;
+  font-size: 0.75rem;
+  letter-spacing: 2px;
+  color: var(--text-secondary);
+}
+
+.changelog-content {
+  background: var(--bg);
+  border: 2px solid var(--border);
+  padding: 1rem;
+  max-height: 200px;
+  overflow-y: auto;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.changelog-content h1, .changelog-content h2, .changelog-content h3 {
+  font-weight: 900;
+  margin-top: 0.75rem;
+  margin-bottom: 0.25rem;
+  color: var(--yellow);
+}
+.changelog-content h1 { font-size: 1.2rem; }
+.changelog-content h2 { font-size: 1.1rem; }
+.changelog-content h3 { font-size: 1rem; }
+
+.changelog-content ul {
+  padding-left: 1.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.changelog-content li {
+  margin-bottom: 0.25rem;
+}
+
+.update-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 0.25rem;
+}
+
+.update-now-btn {
+  background: var(--green) !important;
+}
+.update-now-btn:hover {
+  background: #047857 !important;
+}
+
+/* Modal Animations */
+.fade-modal-enter-active, .fade-modal-leave-active {
+  transition: opacity 0.3s ease;
+}
+.fade-modal-enter-from, .fade-modal-leave-to {
+  opacity: 0;
+}
+
+.fade-modal-enter-active .update-modal {
+  animation: modal-zoom-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.fade-modal-leave-active .update-modal {
+  animation: modal-zoom-out 0.2s ease-in;
+}
+
+@keyframes modal-zoom-in {
+  from { transform: scale(0.8) translateY(30px); }
+  to { transform: scale(1) translateY(0); }
+}
+@keyframes modal-zoom-out {
+  from { transform: scale(1) translateY(0); }
+  to { transform: scale(0.9) translateY(20px); }
 }
 </style>

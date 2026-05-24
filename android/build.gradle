@@ -22,6 +22,31 @@ allprojects {
         google()
         mavenCentral()
     }
+    
+    tasks.withType(JavaCompile).configureEach {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    // Dynamic resolution for KotlinCompile tasks to force Java 17 targets
+    tasks.configureEach { task ->
+        if (task.class.name.contains("KotlinCompile")) {
+            task.kotlinOptions.jvmTarget = "17"
+        }
+    }
+}
+
+subprojects {
+    afterEvaluate { project ->
+        if (project.hasProperty("android")) {
+            project.android {
+                compileOptions {
+                    sourceCompatibility JavaVersion.VERSION_17
+                    targetCompatibility JavaVersion.VERSION_17
+                }
+            }
+        }
+    }
 }
 
 task clean(type: Delete) {

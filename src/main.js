@@ -20,9 +20,20 @@ window.addEventListener('appinstalled', () => {
 });
 
 if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
-            .then(reg => console.log('[PWA] Service Worker registered successfully:', reg.scope))
-            .catch(err => console.error('[PWA] Service Worker registration failed:', err));
-    });
+    const isLocalDev = window.location.hostname.includes('localhost') || window.location.hostname.match(/^\d+\.\d+\.\d+\.\d+$/);
+    if (isLocalDev) {
+        navigator.serviceWorker.getRegistrations().then(registrations => {
+            for (const registration of registrations) {
+                registration.unregister().then(unregistered => {
+                    if (unregistered) console.log('[PWA] Unregistered stale service worker for local development.');
+                });
+            }
+        });
+    } else {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js')
+                .then(reg => console.log('[PWA] Service Worker registered successfully:', reg.scope))
+                .catch(err => console.error('[PWA] Service Worker registration failed:', err));
+        });
+    }
 }

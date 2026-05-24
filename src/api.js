@@ -3,12 +3,15 @@
  * Multi-source integration (Local + Manhwadesu)
  */
 
-const API_BASE = (window.Capacitor ? 'https://shngm.vercel.app' : '') + '/api/shinigami-proxy?path=';
+const isNativeProduction = window.Capacitor && window.location.port === '';
+export const PROXY_PREFIX = isNativeProduction ? 'https://shngm.vercel.app' : '';
+
+const API_BASE = PROXY_PREFIX + '/api/shinigami-proxy?path=';
 
 // --- PERSISTENT CACHE ENGINE (IndexedDB) ---
 const DB_NAME = 'VRTWEL_CACHE';
 const STORE_NAME = 'api_responses';
-const CACHE_VERSION = 1;
+const CACHE_VERSION = 2;
 
 const openDB = () => new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, CACHE_VERSION);
@@ -643,14 +646,14 @@ export const API = {
 
     mwd: {
         async getLatest(page = 1, priority = PRIORITY.HIGH) {
-            return fetchWithRetry(`${window.Capacitor ? 'https://shngm.vercel.app' : ''}/api/manhwadesu/series?page=${page}`, {}, 2, 1000, priority);
+            return fetchWithRetry(`${PROXY_PREFIX}/api/manhwadesu/series?page=${page}`, {}, 2, 1000, priority);
         },
         async getDetail(slug, priority = PRIORITY.HIGH) {
             const clean = String(slug || '').trim().replace(/^['"`]+|['"`]+$/g, '');
             if (!clean || clean === 'undefined' || clean === 'null' || clean === '') {
                 return { data: null };
             }
-            const data = await fetchWithRetry(`${window.Capacitor ? 'https://shngm.vercel.app' : ''}/api/manhwadesu/detail?slug=${clean}`, {}, 2, 1000, priority);
+            const data = await fetchWithRetry(`${PROXY_PREFIX}/api/manhwadesu/detail?slug=${clean}`, {}, 2, 1000, priority);
             return { data: { ...data?.detail, manga_id: `mwd-${clean}` } };
         },
         async getChapterList(slug, priority = PRIORITY.HIGH) {
@@ -658,7 +661,7 @@ export const API = {
             if (!clean || clean === 'undefined' || clean === 'null' || clean === '') {
                 return { data: [] };
             }
-            const data = await fetchWithRetry(`${window.Capacitor ? 'https://shngm.vercel.app' : ''}/api/manhwadesu/detail?slug=${clean}`, {}, 2, 1000, priority);
+            const data = await fetchWithRetry(`${PROXY_PREFIX}/api/manhwadesu/detail?slug=${clean}`, {}, 2, 1000, priority);
             return { data: (data?.chapters || []).map(ch => ({ ...ch, chapter_id: `mwd-${clean}__${ch.chapter_id}` })) };
         },
         async getPages(slug, chapter, priority = PRIORITY.HIGH) {
@@ -668,27 +671,27 @@ export const API = {
                 console.error('[API] getPages called with invalid parameters:', slug, chapter);
                 return { data: { chapter: { data: [] }, base_url: '', path: '' } };
             }
-            const res = await fetchWithRetry(`${window.Capacitor ? 'https://shngm.vercel.app' : ''}/api/manhwadesu/pages?slug=${cleanSlug}&chapter=${cleanCh}`, {}, 2, 1000, priority);
-            const images = (res?.data || []).map(img => `${window.Capacitor ? 'https://shngm.vercel.app' : ''}/api/image-proxy?url=${encodeURIComponent(img)}`);
+            const res = await fetchWithRetry(`${PROXY_PREFIX}/api/manhwadesu/pages?slug=${cleanSlug}&chapter=${cleanCh}`, {}, 2, 1000, priority);
+            const images = (res?.data || []).map(img => `${PROXY_PREFIX}/api/image-proxy?url=${encodeURIComponent(img)}`);
             return { data: { chapter: { data: images }, base_url: '', path: '' } };
         },
         async search(q, priority = PRIORITY.HIGH) {
             const cleanQ = String(q || '').trim();
             if (!cleanQ) return { data: [] };
-            return fetchWithRetry(`${window.Capacitor ? 'https://shngm.vercel.app' : ''}/api/manhwadesu/search?q=${encodeURIComponent(cleanQ)}`, {}, 2, 1000, priority);
+            return fetchWithRetry(`${PROXY_PREFIX}/api/manhwadesu/search?q=${encodeURIComponent(cleanQ)}`, {}, 2, 1000, priority);
         }
     },
 
     cos: {
         async getLatest(page = 1, priority = PRIORITY.HIGH) {
-            return fetchWithRetry(`${window.Capacitor ? 'https://shngm.vercel.app' : ''}/api/cosmicscans/series?page=${page}`, {}, 2, 1000, priority);
+            return fetchWithRetry(`${PROXY_PREFIX}/api/cosmicscans/series?page=${page}`, {}, 2, 1000, priority);
         },
         async getDetail(slug, priority = PRIORITY.HIGH) {
             const clean = String(slug || '').trim().replace(/^['"`]+|['"`]+$/g, '');
             if (!clean || clean === 'undefined' || clean === 'null' || clean === '') {
                 return { data: null };
             }
-            const data = await fetchWithRetry(`${window.Capacitor ? 'https://shngm.vercel.app' : ''}/api/cosmicscans/detail?slug=${clean}`, {}, 2, 1000, priority);
+            const data = await fetchWithRetry(`${PROXY_PREFIX}/api/cosmicscans/detail?slug=${clean}`, {}, 2, 1000, priority);
             return { data: { ...data?.detail, manga_id: `cos-${clean}` } };
         },
         async getChapterList(slug, priority = PRIORITY.HIGH) {
@@ -696,7 +699,7 @@ export const API = {
             if (!clean || clean === 'undefined' || clean === 'null' || clean === '') {
                 return { data: [] };
             }
-            const data = await fetchWithRetry(`${window.Capacitor ? 'https://shngm.vercel.app' : ''}/api/cosmicscans/detail?slug=${clean}`, {}, 2, 1000, priority);
+            const data = await fetchWithRetry(`${PROXY_PREFIX}/api/cosmicscans/detail?slug=${clean}`, {}, 2, 1000, priority);
             return { data: (data?.chapters || []).map(ch => ({ ...ch, chapter_id: `cos-${clean}__${ch.chapter_id}` })) };
         },
         async getPages(slug, chapter, priority = PRIORITY.HIGH) {
@@ -706,14 +709,14 @@ export const API = {
                 console.error('[API] getPages called with invalid parameters:', slug, chapter);
                 return { data: { chapter: { data: [] }, base_url: '', path: '' } };
             }
-            const res = await fetchWithRetry(`${window.Capacitor ? 'https://shngm.vercel.app' : ''}/api/cosmicscans/pages?slug=${cleanSlug}&chapter=${cleanCh}`, {}, 2, 1000, priority);
-            const images = (res?.data || []).map(img => `${window.Capacitor ? 'https://shngm.vercel.app' : ''}/api/image-proxy?url=${encodeURIComponent(img)}`);
+            const res = await fetchWithRetry(`${PROXY_PREFIX}/api/cosmicscans/pages?slug=${cleanSlug}&chapter=${cleanCh}`, {}, 2, 1000, priority);
+            const images = (res?.data || []).map(img => `${PROXY_PREFIX}/api/image-proxy?url=${encodeURIComponent(img)}`);
             return { data: { chapter: { data: images }, base_url: '', path: '' } };
         },
         async search(q, priority = PRIORITY.HIGH) {
             const cleanQ = String(q || '').trim();
             if (!cleanQ) return { data: [] };
-            return fetchWithRetry(`${window.Capacitor ? 'https://shngm.vercel.app' : ''}/api/cosmicscans/search?q=${encodeURIComponent(cleanQ)}`, {}, 2, 1000, priority);
+            return fetchWithRetry(`${PROXY_PREFIX}/api/cosmicscans/search?q=${encodeURIComponent(cleanQ)}`, {}, 2, 1000, priority);
         }
     },
 
@@ -818,7 +821,7 @@ export const API = {
         }
 
         if (url && url.startsWith('http')) {
-            return `${window.Capacitor ? 'https://shngm.vercel.app' : ''}/api/image-proxy?url=${encodeURIComponent(url)}`;
+            return `${PROXY_PREFIX}/api/image-proxy?url=${encodeURIComponent(url)}`;
         }
         return url;
     }
